@@ -7,7 +7,9 @@ import Dashboard from "./components/Dashboard";
 import Profile from "./components/Profile";
 import ResetPassword from "./components/ResetPassword";
 import AdminPanel from "./components/AdminPanel";
-import LotteryPage from "./components/LotteryPage"; // Импортируем новый компонент
+import LotteryPage from "./components/LotteryPage";
+import InstantLotteries from "./components/InstantLotteries";
+import InstantLotteryGame from "./components/InstantLotteryGame";
 import { supabase } from "./supabaseClient";
 
 function App() {
@@ -79,10 +81,18 @@ function App() {
               path="/admin"
               element={isAuthenticated && isAdmin ? <AdminPanel /> : <Navigate to="/login" />}
             />
-            {/* Новый маршрут для страницы лотереи */}
             <Route
               path="/lottery/:id"
               element={<LotteryPage />}
+            />
+            {/* Маршруты для моментальных лотерей */}
+            <Route
+              path="/instant-lotteries"
+              element={<InstantLotteries />}
+            />
+            <Route
+              path="/instant-lottery/:type"
+              element={isAuthenticated ? <InstantLotteryGame /> : <Navigate to="/login" />}
             />
           </Routes>
         </main>

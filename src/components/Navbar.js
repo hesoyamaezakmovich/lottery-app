@@ -81,13 +81,19 @@ const Navbar = () => {
                 />
               </svg>
             </button>
-            <div className={`md:flex items-center space-x-6 ${isMenuOpen ? "block" : "hidden"} md:block`}>
+            <div className={`md:flex items-center space-x-6 ${isMenuOpen ? "block absolute top-16 right-4 bg-yellow-500 p-4 shadow-lg rounded-lg z-50" : "hidden"} md:static md:bg-transparent md:shadow-none md:p-0 md:block`}>
               <button
                 onClick={handleLotteryClick}
                 className="block text-black hover:text-gray-800 py-2 md:py-0"
               >
                 Лотереи
               </button>
+              <Link
+                to="/instant-lotteries"
+                className="block text-black hover:text-gray-800 py-2 md:py-0"
+              >
+                Моментальные лотереи
+              </Link>
               {user ? (
                 <>
                   <Link

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import { ClipLoader } from "react-spinners";
+import { motion } from "framer-motion";
 
 const InstantLotteries = () => {
   const [loading, setLoading] = useState(true);
@@ -70,7 +71,10 @@ const InstantLotteries = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Лотерея "Золотой сундук" */}
-          <div className="bg-gradient-to-b from-yellow-500 to-amber-600 rounded-lg shadow-lg overflow-hidden transition-transform duration-300 hover:-translate-y-2">
+          <motion.div 
+            className="bg-gradient-to-b from-yellow-500 to-amber-600 rounded-lg shadow-lg overflow-hidden transition-transform duration-300 hover:-translate-y-2"
+            whileHover={{ scale: 1.02 }}
+          >
             <div className="p-6">
               <div className="w-16 h-16 mx-auto mb-4 bg-yellow-300 rounded-full flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-amber-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -95,17 +99,20 @@ const InstantLotteries = () => {
                 Выбери один из трех сундуков и выиграй до 500 ₽!
               </p>
               <button
-                onClick={() => handlePlayLottery("treasure-chest")}
+                onClick={() => handlePlayLottery("pirate-treasure")}
                 disabled={!user}
                 className="w-full py-3 px-4 bg-white text-amber-600 font-bold rounded-lg hover:bg-yellow-100 focus:outline-none transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Играть
               </button>
             </div>
-          </div>
+          </motion.div>
 
-          {/* Лотерея "Космическая удача" */}
-          <div className="bg-gradient-to-b from-indigo-500 to-purple-600 rounded-lg shadow-lg overflow-hidden transition-transform duration-300 hover:-translate-y-2">
+          {/* Лотерея "Мистический оракул" */}
+          <motion.div 
+            className="bg-gradient-to-b from-indigo-500 to-purple-600 rounded-lg shadow-lg overflow-hidden transition-transform duration-300 hover:-translate-y-2"
+            whileHover={{ scale: 1.02 }}
+          >
             <div className="p-6">
               <div className="w-16 h-16 mx-auto mb-4 bg-indigo-300 rounded-full flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-indigo-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -113,10 +120,10 @@ const InstantLotteries = () => {
                 </svg>
               </div>
               <h3 className="text-2xl font-bold text-white text-center mb-2">
-                Космическая удача
+                Мистический оракул
               </h3>
               <p className="text-white text-center mb-4">
-                Исследуй космические просторы!
+                Раскрой тайны своей судьбы!
               </p>
               <div className="bg-white bg-opacity-20 p-3 rounded-lg mb-4">
                 <p className="text-white text-center font-semibold">
@@ -127,20 +134,23 @@ const InstantLotteries = () => {
                 </p>
               </div>
               <p className="text-white text-sm text-center mb-4">
-                Собери комбинацию планет и выиграй до 1,000 ₽!
+                Выбери магическую карту и выиграй до 1,000 ₽!
               </p>
               <button
-                onClick={() => handlePlayLottery("space-fortune")}
+                onClick={() => handlePlayLottery("mystic-oracle")}
                 disabled={!user}
                 className="w-full py-3 px-4 bg-white text-indigo-600 font-bold rounded-lg hover:bg-indigo-100 focus:outline-none transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Играть
               </button>
             </div>
-          </div>
+          </motion.div>
 
-          {/* Лотерея "Изумрудный лес" */}
-          <div className="bg-gradient-to-b from-emerald-500 to-green-600 rounded-lg shadow-lg overflow-hidden transition-transform duration-300 hover:-translate-y-2">
+          {/* Лотерея "Приключения в джунглях" */}
+          <motion.div 
+            className="bg-gradient-to-b from-emerald-500 to-green-600 rounded-lg shadow-lg overflow-hidden transition-transform duration-300 hover:-translate-y-2"
+            whileHover={{ scale: 1.02 }}
+          >
             <div className="p-6">
               <div className="w-16 h-16 mx-auto mb-4 bg-emerald-300 rounded-full flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-emerald-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -148,10 +158,10 @@ const InstantLotteries = () => {
                 </svg>
               </div>
               <h3 className="text-2xl font-bold text-white text-center mb-2">
-                Изумрудный лес
+                Приключения в джунглях
               </h3>
               <p className="text-white text-center mb-4">
-                Волшебное приключение в лесу!
+                Отправься на поиски сокровищ!
               </p>
               <div className="bg-white bg-opacity-20 p-3 rounded-lg mb-4">
                 <p className="text-white text-center font-semibold">
@@ -162,17 +172,17 @@ const InstantLotteries = () => {
                 </p>
               </div>
               <p className="text-white text-sm text-center mb-4">
-                Найди волшебный артефакт и выиграй до 3,000 ₽!
+                Выбери правильный путь и выиграй до 3,000 ₽!
               </p>
               <button
-                onClick={() => handlePlayLottery("emerald-forest")}
+                onClick={() => handlePlayLottery("jungle-adventure")}
                 disabled={!user}
                 className="w-full py-3 px-4 bg-white text-emerald-600 font-bold rounded-lg hover:bg-green-100 focus:outline-none transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Играть
               </button>
             </div>
-          </div>
+          </motion.div>
         </div>
 
         {user && (
