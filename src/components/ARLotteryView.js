@@ -1,4 +1,4 @@
-// src/components/ARLotteryView.js
+// Исправленный src/components/ARLotteryView.js для iOS
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
@@ -15,6 +15,7 @@ const ARLotteryView = () => {
   const [arStarted, setArStarted] = useState(false);
   const [isWebXRSupported, setIsWebXRSupported] = useState(null);
   const [isIOS, setIsIOS] = useState(false);
+  const [isIOSSafari, setIsIOSSafari] = useState(false);
   const [logs, setLogs] = useState([]);
 
   const containerRef = useRef(null);
@@ -32,10 +33,16 @@ const ARLotteryView = () => {
 
   // Проверка платформы и WebXR
   useEffect(() => {
-    // Определяем iOS
-    const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    // Проверка iOS
+    const iosRegex = /iPad|iPhone|iPod/i;
+    const isIOSDevice = iosRegex.test(navigator.userAgent) && !window.MSStream;
     setIsIOS(isIOSDevice);
-    addLog(`Платформа: ${isIOSDevice ? "iOS" : "Не iOS"}`);
+    
+    // Проверка Safari на iOS
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    setIsIOSSafari(isIOSDevice && isSafari);
+    
+    addLog(`Платформа: ${isIOSDevice ? "iOS" : "Не iOS"}, Safari: ${isSafari}`);
 
     // Проверка WebXR
     const checkWebXR = async () => {
@@ -87,6 +94,46 @@ const ARLotteryView = () => {
     fetchTicket();
   }, [id]);
 
+  // Запуск AR Quick Look для iOS
+  const launchARQuickLook = () => {
+    addLog("Запуск AR Quick Look");
+    // Определяем путь к USDZ модели в зависимости от выигрыша
+    const modelPath = ticket?.is_win
+      ? "/models/treasure_chest.usdz"
+      : "/models/empty_chest.usdz";
+    
+    try {
+      // Создаем элемент anchor для AR Quick Look
+      const anchor = document.createElement('a');
+      anchor.setAttribute('rel', 'ar');
+      anchor.setAttribute('href', modelPath);
+      
+      // Важно добавить изображение для AR Quick Look
+      const img = document.createElement('img');
+      img.src = "/models/preview.jpg";
+      img.alt = "AR Preview";
+      img.style.display = "none";
+      
+      anchor.appendChild(img);
+      document.body.appendChild(anchor);
+      
+      // Имитируем клик
+      anchor.click();
+      
+      // Удаляем элемент после использования
+      setTimeout(() => {
+        document.body.removeChild(anchor);
+      }, 1000);
+      
+      addLog("AR Quick Look запущен");
+      setArStarted(true);
+      return true;
+    } catch (err) {
+      addLog(`Ошибка запуска AR Quick Look: ${err.message}`);
+      return false;
+    }
+  };
+
   // Инициализация AR или 3D-режима
   const initAR = async () => {
     addLog("Инициализация начата");
@@ -99,21 +146,15 @@ const ARLotteryView = () => {
     }
 
     // Для iOS: AR Quick Look
-    if (isIOS && !isWebXRSupported) {
+    if (isIOS) {
       addLog("iOS: Пробуем AR Quick Look");
-      const modelUrl = ticket?.is_win
-        ? "/models/treasure_chest.usdz"
-        : "/models/empty_chest.usdz";
-      const link = document.createElement("a");
-      link.href = modelUrl;
-      link.setAttribute("rel", "ar");
-      link.innerHTML = '<img src="/models/preview.jpg" style="display:none;">';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      addLog("AR Quick Look запущен");
-      setArStarted(true);
-      return;
+      const quickLookLaunched = launchARQuickLook();
+      
+      if (quickLookLaunched) {
+        return; // Выходим, если AR Quick Look успешно запущен
+      } else {
+        addLog("AR Quick Look не сработал, пробуем WebXR или 3D режим");
+      }
     }
 
     try {
@@ -196,28 +237,32 @@ const ARLotteryView = () => {
 
       // ARButton (только если WebXR поддерживается)
       if (isWebXRSupported) {
-        const button = ARButton.createButton(renderer, {
-          optionalFeatures: ["dom-overlay"],
-          domOverlay: { root: document.body },
-        });
-        document.body.appendChild(button);
-        addLog("ARButton добавлен");
+        try {
+          const button = ARButton.createButton(renderer, {
+            optionalFeatures: ["dom-overlay"],
+            domOverlay: { root: document.body },
+          });
+          document.body.appendChild(button);
+          addLog("ARButton добавлен");
 
-        renderer.xr.addEventListener("sessionstart", () => {
-          addLog("WebXR сессия начата");
-          if (objectRef.current) {
-            objectRef.current.position.set(0, 0, -0.5);
-            objectRef.current.visible = true;
-            addLog("Объект установлен в позицию");
-          }
-          const session = renderer.xr.getSession();
-          addLog(`XR режим: ${session?.mode || "нет"}`);
-        });
+          renderer.xr.addEventListener("sessionstart", () => {
+            addLog("WebXR сессия начата");
+            if (objectRef.current) {
+              objectRef.current.position.set(0, 0, -0.5);
+              objectRef.current.visible = true;
+              addLog("Объект установлен в позицию");
+            }
+            const session = renderer.xr.getSession();
+            addLog(`XR режим: ${session?.mode || "нет"}`);
+          });
 
-        renderer.xr.addEventListener("sessionend", () => {
-          addLog("WebXR сессия завершена");
-          setArStarted(false);
-        });
+          renderer.xr.addEventListener("sessionend", () => {
+            addLog("WebXR сессия завершена");
+            setArStarted(false);
+          });
+        } catch (err) {
+          addLog(`Ошибка при создании AR кнопки: ${err.message}`);
+        }
 
         // Проверка разрешений камеры
         try {
@@ -231,6 +276,9 @@ const ARLotteryView = () => {
         } catch (err) {
           addLog(`Ошибка проверки камеры: ${err.message}`);
         }
+      } else {
+        // Fallback для устройств без WebXR поддержки
+        addLog("Инициализация обычного 3D режима (без AR)");
       }
 
       // Анимация
@@ -252,7 +300,7 @@ const ARLotteryView = () => {
             }
           });
         } else {
-          // 3D-режим для iOS без WebXR
+          // 3D-режим для устройств без WebXR
           const animateFrame = () => {
             const delta = clock.current.getDelta();
             if (mixerRef.current) {
@@ -336,24 +384,37 @@ const ARLotteryView = () => {
       <div ref={containerRef} className="absolute inset-0"></div>
       {!arStarted ? (
         <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="text-center text-white">
+          <div className="text-center text-white p-4 max-w-md">
             <h2 className="text-2xl font-bold mb-6">Просмотр результата лотереи</h2>
             <p className="mb-8">
               {ticket.is_win
                 ? `Поздравляем! Вы выиграли ${ticket.win_amount} ₽`
                 : "К сожалению, вы не выиграли в этот раз"}
             </p>
-            {isIOS && !isWebXRSupported && (
-              <p className="mb-4 text-sm">
-                На iOS используйте Safari или Chrome для AR Quick Look. Убедитесь, что iOS 16+.
-              </p>
+            
+            {isIOS && (
+              <div className="mb-6 p-4 bg-indigo-900 bg-opacity-50 rounded-lg">
+                <p className="mb-2">Для просмотра AR на устройствах iOS:</p>
+                <ul className="text-left text-sm space-y-1">
+                  <li>• Убедитесь, что используете Safari</li>
+                  <li>• Разрешите доступ к камере</li>
+                  <li>• Устройство должно поддерживать ARKit (iPhone 6s и новее)</li>
+                </ul>
+              </div>
             )}
+            
             <button
               onClick={initAR}
-              className="px-6 py-3 bg-yellow-500 text-black font-bold rounded-lg hover:bg-yellow-600"
+              className="w-full px-6 py-3 bg-yellow-500 text-black font-bold rounded-lg hover:bg-yellow-600"
             >
-              Запустить AR просмотр
+              {isIOS ? "Открыть в AR (iOS)" : "Запустить AR просмотр"}
             </button>
+            
+            {!isWebXRSupported && !isIOS && (
+              <p className="mt-4 text-sm opacity-80">
+                Ваш браузер не поддерживает WebXR. Будет запущен обычный 3D просмотр.
+              </p>
+            )}
           </div>
         </div>
       ) : (
@@ -395,11 +456,14 @@ const ARLotteryView = () => {
           </div>
         </div>
       )}
+      
+      {/* Отладочные логи (скрыты по умолчанию) */}
       <div className="absolute bottom-4 left-4 right-4 bg-black bg-opacity-50 text-white p-2 max-h-40 overflow-y-auto">
         {logs.map((log, index) => (
           <p key={index} className="text-sm">{log}</p>
         ))}
       </div>
+      
       {!arStarted && (
         <div className="absolute top-4 left-4">
           <button
