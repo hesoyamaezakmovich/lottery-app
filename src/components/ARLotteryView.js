@@ -22,7 +22,7 @@ const ARLotteryView = () => {
   const navigate = useNavigate();
 
   const addLog = (message) => {
-    setLogs((prev) => [...prev, message]);
+    setLogs((prev) => [...prev, message].slice(-10));
   };
 
   // Получаем данные билета
@@ -62,14 +62,29 @@ const ARLotteryView = () => {
 
     // Проверка HTTPS
     if (window.location.protocol !== "https:" && window.location.hostname !== "localhost") {
-      setError("WebXR требует HTTPS. Пожалуйста, используйте безопасное соединение.");
+      setError("WebXR требует HTTPS.");
       addLog("Ошибка: HTTPS требуется");
       return;
     }
 
-    if (!("xr" in navigator)) {
-      setError("WebXR не поддерживается. Используйте Chrome 81+ или Safari 16+.");
+    // Проверка WebXR
+    if (!navigator.xr) {
+      setError("WebXR не поддерживается. Используйте Chrome 81+.");
       addLog("Ошибка: WebXR не поддерживается");
+      return;
+    }
+
+    // Проверка immersive-ar
+    try {
+      const isSupported = await navigator.xr.isSessionSupported("immersive-ar");
+      if (!isSupported) {
+        setError("AR-режим не поддерживается на этом устройстве.");
+        addLog("Ошибка: immersive-ar не поддерживается");
+        return;
+      }
+    } catch (err) {
+      addLog(`Ошибка проверки WebXR: ${err.message}`);
+      setError("Ошибка проверки AR.");
       return;
     }
 
@@ -103,18 +118,19 @@ const ARLotteryView = () => {
       // AR-объект
       const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
       const material = ticket?.is_win
-        ? new THREE.MeshBasicMaterial({ color: 0xffd700 })
-        : new THREE.MeshBasicMaterial({ color: 0x808080 });
+        ? new THREE.MeshStandardMaterial({ color: 0xffd700 })
+        : new THREE.MeshStandardMaterial({ color: 0x808080 });
       const cube = new THREE.Mesh(geometry, material);
-      cube.position.set(0, 0, -1); // Fallback-позиция
-      cube.visible = true; // Показываем сразу для отладки
+      cube.position.set(0, 0, -0.5);
+      cube.visible = true;
       scene.add(cube);
       objectRef.current = cube;
       addLog("Объект создан");
 
       // ARButton
       const button = ARButton.createButton(renderer, {
-        optionalFeatures: ["local-floor", "dom-overlay"],
+        requiredFeatures: ["local-floor"],
+        optionalFeatures: ["dom-overlay"],
         domOverlay: { root: document.body },
       });
       document.body.appendChild(button);
@@ -123,6 +139,9 @@ const ARLotteryView = () => {
       // WebXR события
       renderer.xr.addEventListener("sessionstart", () => {
         addLog("WebXR сессия начата");
+        objectRef.current.position.set(0, 0, -0.5);
+        objectRef.current.visible = true;
+        addLog("Куб установлен в позицию");
       });
 
       renderer.xr.addEventListener("sessionend", () => {
@@ -130,7 +149,21 @@ const ARLotteryView = () => {
         setArStarted(false);
       });
 
+      // Проверка разрешений камеры
+      try {
+        const permissionStatus = await navigator.permissions.query({ name: "camera" });
+        if (permissionStatus.state === "denied") {
+          setError("Доступ к камере запрещён. Разрешите в настройках.");
+          addLog("Ошибка: доступ к камере запрещён");
+          return;
+        }
+        addLog(`Статус камеры: ${permissionStatus.state}`);
+      } catch (err) {
+        addLog(`Ошибка проверки камеры: ${err.message}`);
+      }
+
       // Анимация
+      let frameCount = 0;
       const animate = () => {
         renderer.setAnimationLoop((timestamp, frame) => {
           if (objectRef.current) {
@@ -138,7 +171,10 @@ const ARLotteryView = () => {
             objectRef.current.rotation.y += 0.01;
           }
           renderer.render(scene, camera);
-          addLog("Рендеринг кадра");
+          frameCount++;
+          if (frameCount % 60 === 0) {
+            addLog("Рендеринг кадра");
+          }
         });
       };
       animate();
@@ -146,7 +182,7 @@ const ARLotteryView = () => {
       setArStarted(true);
     } catch (err) {
       addLog(`Ошибка при запуске AR: ${err.message}`);
-      setError("Не удалось запустить AR. Проверьте консоль и попробуйте снова.");
+      setError(`Не удалось запустить AR: ${err.message}`);
     }
   };
 
@@ -207,9 +243,9 @@ const ARLotteryView = () => {
 
   return (
     <div className="h-screen relative">
-      <div ref={containerRef} className="absolute inset-0 bg-black"></div>
+      <div ref={containerRef} className="absolute inset-0"></div>
       {!arStarted ? (
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
           <div className="text-center text-white">
             <h2 className="text-2xl font-bold mb-6">Просмотр результата лотереи</h2>
             <p className="mb-8">
