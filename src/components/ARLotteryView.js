@@ -1,4 +1,4 @@
-// Исправленный src/components/ARLotteryView.js для iOS
+// src/components/ARLotteryView.js - Обновленная версия с анимированными сундуками и звуком
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
@@ -6,6 +6,7 @@ import { ClipLoader } from "react-spinners";
 import * as THREE from "three";
 import { ARButton } from "three/examples/jsm/webxr/ARButton.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 const ARLotteryView = () => {
   const { id } = useParams();
@@ -15,8 +16,19 @@ const ARLotteryView = () => {
   const [arStarted, setArStarted] = useState(false);
   const [isWebXRSupported, setIsWebXRSupported] = useState(null);
   const [isIOS, setIsIOS] = useState(false);
-  const [isIOSSafari, setIsIOSSafari] = useState(false);
   const [logs, setLogs] = useState([]);
+  const [is3DMode, setIs3DMode] = useState(false);
+  const [animationPlayed, setAnimationPlayed] = useState(false);
+
+  // Sound effects
+  const [sounds, setSounds] = useState({
+    chestOpen: null,
+    chestClose: null,
+    win: null,
+    lose: null,
+    pirateWin: null,
+    pirateLose: null,
+  });
 
   const containerRef = useRef(null);
   const sceneRef = useRef(null);
@@ -24,7 +36,10 @@ const ARLotteryView = () => {
   const cameraRef = useRef(null);
   const objectRef = useRef(null);
   const mixerRef = useRef(null);
+  const controlsRef = useRef(null);
   const clock = useRef(new THREE.Clock());
+  const listener = useRef(null);
+  const audioLoader = useRef(null);
   const navigate = useNavigate();
 
   const addLog = (message) => {
@@ -33,18 +48,11 @@ const ARLotteryView = () => {
 
   // Проверка платформы и WebXR
   useEffect(() => {
-    // Проверка iOS
     const iosRegex = /iPad|iPhone|iPod/i;
     const isIOSDevice = iosRegex.test(navigator.userAgent) && !window.MSStream;
     setIsIOS(isIOSDevice);
-    
-    // Проверка Safari на iOS
-    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-    setIsIOSSafari(isIOSDevice && isSafari);
-    
-    addLog(`Платформа: ${isIOSDevice ? "iOS" : "Не iOS"}, Safari: ${isSafari}`);
+    addLog(`Платформа: ${isIOSDevice ? "iOS" : "Не iOS"}`);
 
-    // Проверка WebXR
     const checkWebXR = async () => {
       if (!navigator.xr) {
         setIsWebXRSupported(false);
@@ -54,7 +62,7 @@ const ARLotteryView = () => {
       try {
         const isSupported = await navigator.xr.isSessionSupported("immersive-ar");
         setIsWebXRSupported(isSupported);
-        addLog(`immersive-ar поддерживается: ${isSupported}`);
+        addLog(`WebXR поддерживается: ${isSupported}`);
       } catch (err) {
         setIsWebXRSupported(false);
         addLog(`Ошибка проверки WebXR: ${err.message}`);
@@ -94,245 +102,422 @@ const ARLotteryView = () => {
     fetchTicket();
   }, [id]);
 
-  // Запуск AR Quick Look для iOS
-  const launchARQuickLook = () => {
-    addLog("Запуск AR Quick Look");
-    // Определяем путь к USDZ модели в зависимости от выигрыша
-    const modelPath = ticket?.is_win
-      ? "/models/treasure_chest.usdz"
-      : "/models/empty_chest.usdz";
-    
-    try {
-      // Создаем элемент anchor для AR Quick Look
-      const anchor = document.createElement('a');
-      anchor.setAttribute('rel', 'ar');
-      anchor.setAttribute('href', modelPath);
-      
-      // Важно добавить изображение для AR Quick Look
-      const img = document.createElement('img');
-      img.src = "/models/preview.jpg";
-      img.alt = "AR Preview";
-      img.style.display = "none";
-      
-      anchor.appendChild(img);
-      document.body.appendChild(anchor);
-      
-      // Имитируем клик
-      anchor.click();
-      
-      // Удаляем элемент после использования
-      setTimeout(() => {
-        document.body.removeChild(anchor);
-      }, 1000);
-      
-      addLog("AR Quick Look запущен");
-      setArStarted(true);
-      return true;
-    } catch (err) {
-      addLog(`Ошибка запуска AR Quick Look: ${err.message}`);
-      return false;
-    }
-  };
-
-  // Инициализация AR или 3D-режима
-  const initAR = async () => {
-    addLog("Инициализация начата");
-
-    // Проверка HTTPS
-    if (window.location.protocol !== "https:" && window.location.hostname !== "localhost") {
-      setError("WebXR требует HTTPS.");
-      addLog("Ошибка: HTTPS требуется");
-      return;
-    }
-
-    // Для iOS: AR Quick Look
-    if (isIOS) {
-      addLog("iOS: Пробуем AR Quick Look");
-      const quickLookLaunched = launchARQuickLook();
-      
-      if (quickLookLaunched) {
-        return; // Выходим, если AR Quick Look успешно запущен
-      } else {
-        addLog("AR Quick Look не сработал, пробуем WebXR или 3D режим");
+  // Загрузка звуковых эффектов
+  const loadSounds = (scene) => {
+    if (!listener.current) {
+      listener.current = new THREE.AudioListener();
+      if (cameraRef.current) {
+        cameraRef.current.add(listener.current);
       }
     }
 
+    if (!audioLoader.current) {
+      audioLoader.current = new THREE.AudioLoader();
+    }
+
+    const soundsToLoad = {
+      chestOpen: { url: '/sounds/chest_open.mp3', volume: 0.5 },
+      chestClose: { url: '/sounds/chest_close.mp3', volume: 0.3 },
+      win: { url: '/sounds/win.mp3', volume: 0.5 },
+      lose: { url: '/sounds/lose.mp3', volume: 0.5 },
+      pirateWin: { url: '/sounds/pirate_win.mp3', volume: 0.7 },
+      pirateLose: { url: '/sounds/pirate_lose.mp3', volume: 0.7 },
+    };
+
+    Object.entries(soundsToLoad).forEach(([key, { url, volume }]) => {
+      const sound = new THREE.Audio(listener.current);
+      try {
+        audioLoader.current.load(
+          url,
+          (buffer) => {
+            sound.setBuffer(buffer);
+            sound.setVolume(volume);
+            sound.setLoop(false);
+            setSounds((prev) => ({ ...prev, [key]: sound }));
+            addLog(`Звук ${key} загружен`);
+          },
+          (progress) => {},
+          (error) => {
+            addLog(`Ошибка загрузки звука ${key}: ${error.message}`);
+            setSounds((prev) => ({ ...prev, [key]: null }));
+          }
+        );
+      } catch (err) {
+        addLog(`Ошибка при загрузке звука ${key}: ${err.message}`);
+      }
+    });
+  };
+
+  // Воспроизведение звука
+  const playSound = (soundName) => {
+    if (sounds[soundName] && sounds[soundName].buffer) {
+      if (sounds[soundName].isPlaying) {
+        sounds[soundName].stop();
+      }
+      sounds[soundName].play();
+      addLog(`Воспроизведение звука: ${soundName}`);
+    } else {
+      addLog(`Звук ${soundName} не загружен`);
+    }
+  };
+
+  // Воспроизведение конкретной анимации
+  const playSpecificAnimation = (animationName, isWin) => {
+    if (mixerRef.current && objectRef.current) {
+      try {
+        const animations = {};
+        if (objectRef.current.animations) {
+          objectRef.current.animations.forEach((clip) => {
+            animations[clip.name] = mixerRef.current.clipAction(clip);
+          });
+        } else if (mixerRef.current._root && mixerRef.current._root.animations) {
+          mixerRef.current._root.animations.forEach((clip) => {
+            animations[clip.name] = mixerRef.current.clipAction(clip);
+          });
+        }
+        console.log("Доступные анимации:", Object.keys(animations));
+        let actionToPlay;
+        // Проверяйте имена анимаций в вашей модели (например, в Blender или glTF Viewer)
+        if (isWin) {
+          actionToPlay = animations["Armature|Exaggerated Opening"] || Object.values(animations)[0];
+        } else {
+          actionToPlay = animations["Armature|Taunting Close"] || (Object.values(animations)[1] || Object.values(animations)[0]);
+        }
+        if (actionToPlay) {
+          Object.values(animations).forEach((action) => {
+            if (action.isRunning()) action.stop();
+          });
+          actionToPlay.setLoop(THREE.LoopOnce);
+          actionToPlay.clampWhenFinished = true;
+          actionToPlay.reset().play();
+          playSound("chestOpen");
+          setTimeout(() => {
+            if (isWin) {
+              playSound("win");
+              setTimeout(() => playSound("pirateWin"), 500);
+            } else {
+              playSound("lose");
+              setTimeout(() => playSound("pirateLose"), 500);
+            }
+          }, 1000);
+          setAnimationPlayed(true);
+        } else {
+          console.error("Не удалось найти нужную анимацию");
+        }
+      } catch (err) {
+        console.error("Ошибка при воспроизведении анимации:", err);
+      }
+    }
+  };
+
+  // Инициализация 3D режима
+  const init3DMode = async () => {
+    addLog("Инициализация 3D режима");
     try {
-      // Сцена
       const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x000020);
       sceneRef.current = scene;
 
-      // Камера
-      const camera = new THREE.PerspectiveCamera(
-        70,
-        window.innerWidth / window.innerHeight,
-        0.01,
-        20
-      );
+      const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+      camera.position.set(0, 0.5, 2);
       cameraRef.current = camera;
 
-      // Рендерер
       const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
       renderer.setPixelRatio(window.devicePixelRatio);
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setClearColor(0x000000, 0);
+      renderer.outputEncoding = THREE.sRGBEncoding;
       renderer.xr.enabled = isWebXRSupported;
       rendererRef.current = renderer;
       containerRef.current.appendChild(renderer.domElement);
       addLog("Рендерер инициализирован");
 
-      // Освещение
-      const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-      scene.add(light);
-      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.target.set(0, 0, 0);
+      controls.update();
+      controls.enablePan = false;
+      controls.enableDamping = true;
+      controlsRef.current = controls;
+
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+      scene.add(ambientLight);
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
       directionalLight.position.set(0, 1, 1);
       scene.add(directionalLight);
+      const spotLight = new THREE.SpotLight(0xffffcc, 1);
+      spotLight.position.set(0, 2, 0);
+      spotLight.angle = Math.PI / 4;
+      spotLight.penumbra = 0.1;
+      spotLight.decay = 2;
+      spotLight.distance = 10;
+      scene.add(spotLight);
 
-      // Загрузка GLTF-модели
+      const floorGeometry = new THREE.PlaneGeometry(4, 4);
+      const floorMaterial = new THREE.MeshStandardMaterial({
+        color: 0xaa7744,
+        roughness: 0.8,
+        metalness: 0.2,
+      });
+      const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.y = -0.3;
+      scene.add(floor);
+
+      loadSounds(scene);
+
       const loader = new GLTFLoader();
-      const modelPath = ticket?.is_win
-        ? "/models/treasure_chest.glb"
-        : "/models/empty_chest.glb";
+      // Для единой модели замените на: const chestModelPath = "/models/treasure_chest_animation.glb";
+      const chestModelPath = ticket?.is_win ? "/models/treasure_chest_win.glb" : "/models/treasure_chest_lose.glb";
+
       loader.load(
-        modelPath,
+        chestModelPath,
         (gltf) => {
+          console.log("====== АНИМАЦИИ В МОДЕЛИ ======");
+          if (gltf.animations && gltf.animations.length > 0) {
+            gltf.animations.forEach((anim, index) => {
+              console.log(`Анимация ${index}: "${anim.name}", продолжительность: ${anim.duration}s`);
+            });
+          } else {
+            console.log("В модели нет анимаций!");
+          }
+
           const model = gltf.scene;
-          model.scale.set(0.1, 0.1, 0.1);
+          model.scale.set(0.5, 0.5, 0.5);
           model.position.set(0, 0, -0.5);
-          model.visible = true;
+          model.rotation.y = Math.PI / 4;
           scene.add(model);
           objectRef.current = model;
-          addLog("Модель загружена");
+          addLog("Модель сундука загружена");
 
           if (gltf.animations && gltf.animations.length > 0) {
             mixerRef.current = new THREE.AnimationMixer(model);
-            const animation = gltf.animations[0];
-            const action = mixerRef.current.clipAction(animation);
-            action.setLoop(THREE.LoopOnce);
-            action.clampWhenFinished = true;
-            action.play();
-            addLog("Анимация запущена");
+            const animations = {};
+            gltf.animations.forEach((clip) => {
+              const action = mixerRef.current.clipAction(clip);
+              animations[clip.name] = action;
+              addLog(`Анимация загружена: ${clip.name}`);
+            });
+            mixerRef.current.addEventListener("finished", (e) => {
+              addLog("Анимация завершена");
+            });
+            setTimeout(() => {
+              playSpecificAnimation(null, ticket.is_win);
+            }, 2000);
           } else {
             addLog("Анимации не найдены");
           }
         },
         (progress) => {
-          addLog(`Загрузка модели: ${Math.round((progress.loaded / progress.total) * 100)}%`);
+          const percent = Math.round((progress.loaded / progress.total) * 100);
+          addLog(`Загрузка модели: ${percent}%`);
         },
         (err) => {
           addLog(`Ошибка загрузки модели: ${err.message}`);
-          // Fallback: куб
-          const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
-          const material = ticket?.is_win
-            ? new THREE.MeshStandardMaterial({ color: 0xffd700 })
-            : new THREE.MeshStandardMaterial({ color: 0x808080 });
-          const cube = new THREE.Mesh(geometry, material);
-          cube.position.set(0, 0, -0.5);
-          cube.visible = true;
-          scene.add(cube);
-          objectRef.current = cube;
-          addLog("Fallback: куб создан");
+          const boxGeometry = new THREE.BoxGeometry(0.5, 0.3, 0.4);
+          const boxMaterial = new THREE.MeshStandardMaterial({
+            color: ticket?.is_win ? 0xffd700 : 0x8b4513,
+            roughness: 0.7,
+            metalness: 0.3,
+          });
+          const box = new THREE.Mesh(boxGeometry, boxMaterial);
+          const lidGeometry = new THREE.BoxGeometry(0.5, 0.1, 0.4);
+          const lidMaterial = new THREE.MeshStandardMaterial({
+            color: ticket?.is_win ? 0xffd700 : 0x8b4513,
+            roughness: 0.7,
+            metalness: 0.3,
+          });
+          const lid = new THREE.Mesh(lidGeometry, lidMaterial);
+          lid.position.y = 0.2;
+          const chest = new THREE.Group();
+          chest.add(box);
+          chest.add(lid);
+          chest.position.set(0, 0, -0.5);
+          scene.add(chest);
+          objectRef.current = chest;
+          addLog("Создан простой сундук");
         }
       );
 
-      // ARButton (только если WebXR поддерживается)
-      if (isWebXRSupported) {
-        try {
-          const button = ARButton.createButton(renderer, {
-            optionalFeatures: ["dom-overlay"],
-            domOverlay: { root: document.body },
-          });
-          document.body.appendChild(button);
-          addLog("ARButton добавлен");
-
-          renderer.xr.addEventListener("sessionstart", () => {
-            addLog("WebXR сессия начата");
-            if (objectRef.current) {
-              objectRef.current.position.set(0, 0, -0.5);
-              objectRef.current.visible = true;
-              addLog("Объект установлен в позицию");
-            }
-            const session = renderer.xr.getSession();
-            addLog(`XR режим: ${session?.mode || "нет"}`);
-          });
-
-          renderer.xr.addEventListener("sessionend", () => {
-            addLog("WebXR сессия завершена");
-            setArStarted(false);
-          });
-        } catch (err) {
-          addLog(`Ошибка при создании AR кнопки: ${err.message}`);
-        }
-
-        // Проверка разрешений камеры
-        try {
-          const permissionStatus = await navigator.permissions.query({ name: "camera" });
-          if (permissionStatus.state === "denied") {
-            setError("Доступ к камере запрещён. Разрешите в настройках браузера.");
-            addLog("Ошибка: доступ к камере запрещён");
-            return;
-          }
-          addLog(`Статус камеры: ${permissionStatus.state}`);
-        } catch (err) {
-          addLog(`Ошибка проверки камеры: ${err.message}`);
-        }
-      } else {
-        // Fallback для устройств без WebXR поддержки
-        addLog("Инициализация обычного 3D режима (без AR)");
-      }
-
-      // Анимация
-      let frameCount = 0;
       const animate = () => {
-        if (isWebXRSupported) {
-          renderer.setAnimationLoop((timestamp, frame) => {
-            const delta = clock.current.getDelta();
-            if (mixerRef.current) {
-              mixerRef.current.update(delta);
-            }
-            if (objectRef.current) {
-              objectRef.current.rotation.y += 0.01;
-            }
-            renderer.render(scene, camera);
-            frameCount++;
-            if (frameCount % 60 === 0) {
-              addLog("Рендеринг кадра");
-            }
-          });
-        } else {
-          // 3D-режим для устройств без WebXR
-          const animateFrame = () => {
-            const delta = clock.current.getDelta();
-            if (mixerRef.current) {
-              mixerRef.current.update(delta);
-            }
-            if (objectRef.current) {
-              objectRef.current.rotation.y += 0.01;
-            }
-            renderer.render(scene, camera);
-            requestAnimationFrame(animateFrame);
-          };
-          animateFrame();
+        requestAnimationFrame(animate);
+        if (controlsRef.current) {
+          controlsRef.current.update();
+        }
+        if (mixerRef.current) {
+          const delta = clock.current.getDelta();
+          mixerRef.current.update(delta);
+        }
+        if (objectRef.current && !mixerRef.current) {
+          objectRef.current.rotation.y += 0.005;
+        }
+        renderer.render(scene, camera);
+      };
+
+      animate();
+      setIs3DMode(true);
+      setArStarted(true);
+
+      const handleResize = () => {
+        if (cameraRef.current && rendererRef.current) {
+          cameraRef.current.aspect = window.innerWidth / window.innerHeight;
+          cameraRef.current.updateProjectionMatrix();
+          rendererRef.current.setSize(window.innerWidth, window.innerHeight);
         }
       };
-      animate();
 
-      setArStarted(true);
+      window.addEventListener("resize", handleResize);
+      return () => {
+        window.removeEventListener("resize", handleResize);
+      };
     } catch (err) {
-      addLog(`Ошибка при запуске: ${err.message}`);
-      setError(`Не удалось запустить AR: ${err.message}`);
+      addLog(`Ошибка при инициализации 3D режима: ${err.message}`);
+      setError(`Не удалось запустить 3D режим: ${err.message}`);
     }
   };
 
-  // Очистка
+  // Инициализация AR режима
+  const initAR = async () => {
+    addLog("Инициализация AR режима");
+    if (!isWebXRSupported || isIOS) {
+      addLog("WebXR не поддерживается, запуск 3D режима");
+      init3DMode();
+      return;
+    }
+
+    try {
+      const scene = new THREE.Scene();
+      sceneRef.current = scene;
+      const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+      cameraRef.current = camera;
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setClearColor(0x000000, 0);
+      renderer.xr.enabled = true;
+      rendererRef.current = renderer;
+      containerRef.current.appendChild(renderer.domElement);
+
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+      scene.add(ambientLight);
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      directionalLight.position.set(0, 1, 1);
+      scene.add(directionalLight);
+
+      loadSounds(scene);
+
+      const loader = new GLTFLoader();
+      // Для единой модели замените на: const chestModelPath = "/models/treasure_chest_animation.glb";
+      const chestModelPath = ticket?.is_win ? "/models/treasure_chest_win.glb" : "/models/treasure_chest_lose.glb";
+
+      loader.load(
+        chestModelPath,
+        (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(0.2, 0.2, 0.2);
+          model.position.set(0, 0, -0.5);
+          model.visible = true;
+          scene.add(model);
+          objectRef.current = model;
+          if (gltf.animations && gltf.animations.length > 0) {
+            mixerRef.current = new THREE.AnimationMixer(model);
+            const animations = {};
+            gltf.animations.forEach((clip) => {
+              const action = mixerRef.current.clipAction(clip);
+              animations[clip.name] = action;
+            });
+          }
+        },
+        undefined,
+        (err) => {
+          addLog(`Ошибка загрузки модели: ${err.message}`);
+          const boxGeometry = new THREE.BoxGeometry(0.2, 0.1, 0.15);
+          const boxMaterial = new THREE.MeshStandardMaterial({
+            color: ticket?.is_win ? 0xffd700 : 0x8b4513,
+          });
+          const box = new THREE.Mesh(boxGeometry, boxMaterial);
+          box.position.set(0, 0, -0.5);
+          scene.add(box);
+          objectRef.current = box;
+        }
+      );
+
+      try {
+        const button = ARButton.createButton(renderer, {
+          requiredFeatures: ["hit-test"],
+          optionalFeatures: ["dom-overlay"],
+          domOverlay: { root: document.body },
+        });
+        document.body.appendChild(button);
+
+        renderer.xr.addEventListener("sessionstart", () => {
+          addLog("WebXR сессия начата");
+          if (objectRef.current) {
+            objectRef.current.visible = false;
+          }
+          const controller = renderer.xr.getController(0);
+          controller.addEventListener("select", () => {
+            if (objectRef.current && !objectRef.current.visible) {
+              objectRef.current.visible = true;
+              objectRef.current.position.set(0, 0, -0.5).applyMatrix4(controller.matrixWorld);
+              objectRef.current.quaternion.setFromRotationMatrix(controller.matrixWorld);
+              setTimeout(() => {
+                playSpecificAnimation(null, ticket.is_win);
+              }, 2000);
+            }
+          });
+          scene.add(controller);
+        });
+
+        renderer.xr.addEventListener("sessionend", () => {
+          addLog("WebXR сессия завершена");
+          setArStarted(false);
+        });
+      } catch (err) {
+        addLog(`Ошибка при создании AR кнопки: ${err.message}`);
+        init3DMode();
+        return;
+      }
+
+      const animate = () => {
+        renderer.setAnimationLoop((time, frame) => {
+          if (mixerRef.current) {
+            const delta = clock.current.getDelta();
+            mixerRef.current.update(delta);
+          }
+          if (objectRef.current && !mixerRef.current) {
+            objectRef.current.rotation.y += 0.01;
+          }
+          renderer.render(scene, camera);
+        });
+      };
+
+      animate();
+      setArStarted(true);
+    } catch (err) {
+      addLog(`Ошибка при инициализации AR: ${err.message}`);
+      setError(`Не удалось запустить AR: ${err.message}`);
+      init3DMode();
+    }
+  };
+
+  // Очистка ресурсов
   useEffect(() => {
     return () => {
+      Object.values(sounds).forEach((sound) => {
+        if (sound && sound.isPlaying) {
+          sound.stop();
+        }
+      });
       if (rendererRef.current) {
         rendererRef.current.setAnimationLoop(null);
         rendererRef.current.dispose();
         if (containerRef.current && rendererRef.current.domElement) {
           containerRef.current.removeChild(rendererRef.current.domElement);
         }
+      }
+      const arButton = document.querySelector("button.webxr-button");
+      if (arButton) {
+        arButton.remove();
       }
     };
   }, []);
@@ -383,110 +568,81 @@ const ARLotteryView = () => {
     <div className="h-screen relative">
       <div ref={containerRef} className="absolute inset-0"></div>
       {!arStarted ? (
-        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="text-center text-white p-4 max-w-md">
-            <h2 className="text-2xl font-bold mb-6">Просмотр результата лотереи</h2>
-            <p className="mb-8">
-              {ticket.is_win
-                ? `Поздравляем! Вы выиграли ${ticket.win_amount} ₽`
-                : "К сожалению, вы не выиграли в этот раз"}
+        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-70">
+          <div className="text-center text-white p-6 max-w-md bg-gray-800 bg-opacity-80 rounded-lg border border-yellow-500">
+            <h2 className="text-2xl font-bold mb-6">Сундук с сокровищами</h2>
+            <div className="mb-8">
+              {ticket.is_win ? (
+                <div className="text-center">
+                  <div className="text-5xl mb-2">💰</div>
+                  <p className="text-xl text-yellow-400 font-bold">
+                    Поздравляем! Вы выиграли {ticket.win_amount} ₽
+                  </p>
+                </div>
+              ) : (
+                <div className="text-center">
+                  <div className="text-5xl mb-2">📦</div>
+                  <p className="text-xl text-gray-300">К сожалению, вы не выиграли в этот раз</p>
+                </div>
+              )}
+            </div>
+            <p className="mb-6">
+              Нажмите кнопку, чтобы увидеть результат вашей лотереи в виде анимированного сундука с
+              сокровищами!
             </p>
-            
-            {isIOS && (
-              <div className="mb-6 p-4 bg-indigo-900 bg-opacity-50 rounded-lg">
-                <p className="mb-2">Для просмотра AR на устройствах iOS:</p>
-                <ul className="text-left text-sm space-y-1">
-                  <li>• Убедитесь, что используете Safari</li>
-                  <li>• Разрешите доступ к камере</li>
-                  <li>• Устройство должно поддерживать ARKit (iPhone 6s и новее)</li>
-                </ul>
-              </div>
-            )}
-            
             <button
               onClick={initAR}
-              className="w-full px-6 py-3 bg-yellow-500 text-black font-bold rounded-lg hover:bg-yellow-600"
+              className="w-full px-6 py-3 bg-yellow-500 text-black font-bold rounded-lg hover:bg-yellow-600 transition-colors duration-300"
             >
-              {isIOS ? "Открыть в AR (iOS)" : "Запустить AR просмотр"}
+              {isWebXRSupported ? "Запустить AR просмотр" : "Запустить 3D просмотр"}
             </button>
-            
-            {!isWebXRSupported && !isIOS && (
-              <p className="mt-4 text-sm opacity-80">
-                Ваш браузер не поддерживает WebXR. Будет запущен обычный 3D просмотр.
-              </p>
-            )}
+            <p className="mt-4 text-sm opacity-80">
+              {isWebXRSupported
+                ? "Направьте камеру на плоскую поверхность и нажмите, чтобы разместить сундук"
+                : "Вы сможете вращать сундук касанием или мышью"}
+            </p>
           </div>
         </div>
       ) : (
-        <div className="absolute inset-0 flex items-center justify-center text-white">
-          <div className="text-center p-8 bg-black bg-opacity-70 rounded-lg">
-            <h2 className="text-xl font-bold mb-4">
-              {isWebXRSupported ? "AR Режим активирован" : "3D Режим активирован"}
-            </h2>
-            <p>
+        <div className="absolute bottom-0 left-0 right-0 p-4 bg-black bg-opacity-70 text-white">
+          <div className="text-center">
+            <h2 className="text-xl font-bold mb-2">
               {ticket.is_win
                 ? `Поздравляем! Вы выиграли ${ticket.win_amount} ₽`
-                : "К сожалению, вы не выиграли в этот раз"}
-            </p>
-            <div className="mt-4">
-              {ticket.is_win ? (
-                <div className="text-6xl mb-2">💰</div>
-              ) : (
-                <div className="text-6xl mb-2">📦</div>
-              )}
-            </div>
-            <p className="text-sm mt-4">
-              {isWebXRSupported
-                ? "Направьте камеру на ровную поверхность"
-                : "Поворачивайте устройство для просмотра"}
-            </p>
-            {mixerRef.current && (
+                : "К сожалению, сундук оказался пуст"}
+            </h2>
+            <div className="flex justify-center space-x-4 mt-4">
               <button
                 onClick={() => {
                   if (mixerRef.current) {
-                    mixerRef.current.clipAction(mixerRef.current.getRoot().animations[0]).reset().play();
-                    addLog("Анимация перезапущена");
+                    setAnimationPlayed(false);
+                    playSpecificAnimation(null, ticket.is_win);
                   }
                 }}
-                className="mt-2 px-4 py-2 bg-blue-500 text-white rounded"
+                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
               >
-                Перезапустить анимацию
+                Повторить анимацию
               </button>
-            )}
+              <button
+                onClick={() => navigate("/dashboard")}
+                className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+              >
+                Вернуться на главную
+              </button>
+            </div>
           </div>
         </div>
       )}
-      
-      {/* Отладочные логи (скрыты по умолчанию) */}
-      <div className="absolute bottom-4 left-4 right-4 bg-black bg-opacity-50 text-white p-2 max-h-40 overflow-y-auto">
+      <div
+        className="absolute top-4 left-4 right-4 bg-black bg-opacity-50 text-white p-2 max-h-40 overflow-y-auto"
+        style={{ display: "none" }}
+      >
         {logs.map((log, index) => (
-          <p key={index} className="text-sm">{log}</p>
+          <p key={index} className="text-xs">
+            {log}
+          </p>
         ))}
       </div>
-      
-      {!arStarted && (
-        <div className="absolute top-4 left-4">
-          <button
-            onClick={() => navigate("/dashboard")}
-            className="p-2 bg-yellow-500 text-black rounded-full shadow-lg"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-6 w-6"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M10 19l-7-7m0 0l7-7m-7 7h18"
-              />
-            </svg>
-          </button>
-        </div>
-      )}
     </div>
   );
 };
