@@ -1,4 +1,4 @@
-// src/components/ARLotteryView.js - Обновленная версия с анимированными сундуками и звуком
+// src/components/ARLotteryView.js - Обновленная версия с анимированными сундуками и звуками открытия/закрытия
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
@@ -24,10 +24,6 @@ const ARLotteryView = () => {
   const [sounds, setSounds] = useState({
     chestOpen: null,
     chestClose: null,
-    win: null,
-    lose: null,
-    pirateWin: null,
-    pirateLose: null,
   });
 
   const containerRef = useRef(null);
@@ -118,10 +114,6 @@ const ARLotteryView = () => {
     const soundsToLoad = {
       chestOpen: { url: '/sounds/chest_open.mp3', volume: 0.5 },
       chestClose: { url: '/sounds/chest_close.mp3', volume: 0.3 },
-      win: { url: '/sounds/win.mp3', volume: 0.5 },
-      lose: { url: '/sounds/lose.mp3', volume: 0.5 },
-      pirateWin: { url: '/sounds/pirate_win.mp3', volume: 0.7 },
-      pirateLose: { url: '/sounds/pirate_lose.mp3', volume: 0.7 },
     };
 
     Object.entries(soundsToLoad).forEach(([key, { url, volume }]) => {
@@ -190,16 +182,8 @@ const ARLotteryView = () => {
           actionToPlay.setLoop(THREE.LoopOnce);
           actionToPlay.clampWhenFinished = true;
           actionToPlay.reset().play();
-          playSound("chestOpen");
-          setTimeout(() => {
-            if (isWin) {
-              playSound("win");
-              setTimeout(() => playSound("pirateWin"), 500);
-            } else {
-              playSound("lose");
-              setTimeout(() => playSound("pirateLose"), 500);
-            }
-          }, 1000);
+          // Воспроизводим звук в зависимости от анимации
+          playSound(isWin ? "chestOpen" : "chestClose");
           setAnimationPlayed(true);
         } else {
           console.error("Не удалось найти нужную анимацию");
