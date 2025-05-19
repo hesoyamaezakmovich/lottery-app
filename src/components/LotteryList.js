@@ -1,27 +1,35 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
-import { useAuth } from "../context/AuthContext";
 import { ClipLoader } from "react-spinners";
 
 const LotteryList = () => {
-  const { user } = useAuth();
   const [lotteries, setLotteries] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [buying, setBuying] = useState(null);
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
-    const fetchLotteries = async () => {
+    const fetchUserAndLotteries = async () => {
       setLoading(true);
       try {
-        console.log("LotteryList: User from context:", user);
-        const { data, error } = await supabase
-          .from("lotteries")
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          const { data, error } = await supabase
+            .from("users")
+            .select("*")
+            .eq("id", session.user.id)
+            .single();
+          if (!error) setUser(data);
+        }
+
+        const { data, error: lotteryError } = await supabase
+          .from("lottery_draws")
           .select("*")
-          .eq("is_active", true)
+          .eq("is_completed", false)
           .order("draw_date", { ascending: true });
 
-        if (error) throw error;
+        if (lotteryError) throw lotteryError;
         setLotteries(data);
       } catch (err) {
         setError(err.message);
@@ -30,11 +38,10 @@ const LotteryList = () => {
       }
     };
 
-    fetchLotteries();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    fetchUserAndLotteries();
   }, []);
 
-  const handleBuyTicket = async (lotteryId) => {
+  const handleBuyTicket = async (lotteryId, ticketPrice) => {
     if (!user) {
       setError("Пожалуйста, войдите в аккаунт");
       return;
@@ -44,11 +51,39 @@ const LotteryList = () => {
     setError(null);
 
     try {
+      if (user.balance < ticketPrice) {
+        const remainingCost = ticketPrice - user.balance;
+        const crystalsNeeded = Math.ceil(remainingCost / 10);
+
+        if (user.crystals < crystalsNeeded) {
+          throw new Error("Недостаточно денег и кристаллов для покупки билета");
+        }
+
+        const crystalsToUse = crystalsNeeded;
+        await supabase
+          .from("users")
+          .update({ balance: 0, crystals: user.crystals - crystalsToUse })
+          .eq("id", user.id);
+      } else {
+        await supabase
+          .from("users")
+          .update({ balance: user.balance - ticketPrice })
+          .eq("id", user.id);
+      }
+
       const { error } = await supabase
         .from("tickets")
-        .insert([{ user_id: user.id, lottery_id: lotteryId }]);
+        .insert([{ user_id: user.id, lottery_draw_id: lotteryId }]);
 
       if (error) throw error;
+
+      // Обновляем локальное состояние пользователя
+      const { data: updatedUser } = await supabase
+        .from("users")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+      setUser(updatedUser);
 
       alert("Билет успешно куплен!");
     } catch (err) {
@@ -90,10 +125,10 @@ const LotteryList = () => {
                 className="bg-white p-6 rounded-lg shadow-md"
               >
                 <h3 className="text-xl font-bold text-black mb-2">
-                  {lottery.name}
+                  {lottery.name || "Лотерея"}
                 </h3>
                 <p className="text-black">
-                  Цена билета: {lottery.ticket_price} руб.
+                  Цена билета: {lottery.ticket_price || 100} руб.
                 </p>
                 <p className="text-black">
                   Призовой фонд: {lottery.prize_pool} руб.
@@ -102,7 +137,7 @@ const LotteryList = () => {
                   Дата розыгрыша: {new Date(lottery.draw_date).toLocaleString()}
                 </p>
                 <button
-                  onClick={() => handleBuyTicket(lottery.id)}
+                  onClick={() => handleBuyTicket(lottery.id, lottery.ticket_price || 100)}
                   disabled={buying === lottery.id}
                   className="mt-4 w-full py-2 px-4 bg-yellow-500 text-black font-semibold rounded-md hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 disabled:opacity-50 flex items-center justify-center"
                 >
