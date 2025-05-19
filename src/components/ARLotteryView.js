@@ -12,16 +12,18 @@ const ARLotteryView = () => {
   const [error, setError] = useState(null);
   const [ticket, setTicket] = useState(null);
   const [arStarted, setArStarted] = useState(false);
+  const [logs, setLogs] = useState([]);
 
   const containerRef = useRef(null);
   const sceneRef = useRef(null);
   const rendererRef = useRef(null);
   const cameraRef = useRef(null);
-  const reticleRef = useRef(null);
-  const objectRef = useRef(null); // Для AR-объекта
-  const hitTestSourceRef = useRef(null);
-  const hitTestSourceRequested = useRef(false);
+  const objectRef = useRef(null);
   const navigate = useNavigate();
+
+  const addLog = (message) => {
+    setLogs((prev) => [...prev, message]);
+  };
 
   // Получаем данные билета
   useEffect(() => {
@@ -44,7 +46,7 @@ const ARLotteryView = () => {
             .eq("id", id);
         }
       } catch (err) {
-        console.error("Ошибка при получении билета:", err);
+        addLog(`Ошибка при получении билета: ${err.message}`);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -56,20 +58,27 @@ const ARLotteryView = () => {
 
   // Инициализация AR
   const initAR = async () => {
-    console.log("Инициализация AR начата");
+    addLog("Инициализация AR начата");
+
+    // Проверка HTTPS
+    if (window.location.protocol !== "https:" && window.location.hostname !== "localhost") {
+      setError("WebXR требует HTTPS. Пожалуйста, используйте безопасное соединение.");
+      addLog("Ошибка: HTTPS требуется");
+      return;
+    }
+
     if (!("xr" in navigator)) {
-      setError(
-        "WebXR не поддерживается. Используйте совместимое устройство и браузер (Chrome 81+ или Safari 16+)."
-      );
+      setError("WebXR не поддерживается. Используйте Chrome 81+ или Safari 16+.");
+      addLog("Ошибка: WebXR не поддерживается");
       return;
     }
 
     try {
-      // Создаём сцену
+      // Сцена
       const scene = new THREE.Scene();
       sceneRef.current = scene;
 
-      // Создаём камеру
+      // Камера
       const camera = new THREE.PerspectiveCamera(
         70,
         window.innerWidth / window.innerHeight,
@@ -78,124 +87,70 @@ const ARLotteryView = () => {
       );
       cameraRef.current = camera;
 
-      // Создаём рендерер
+      // Рендерер
       const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
       renderer.setPixelRatio(window.devicePixelRatio);
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.xr.enabled = true;
       rendererRef.current = renderer;
       containerRef.current.appendChild(renderer.domElement);
+      addLog("Рендерер инициализирован");
 
       // Освещение
       const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
       scene.add(light);
 
-      // Создаём AR-объект (куб)
+      // AR-объект
       const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
       const material = ticket?.is_win
-        ? new THREE.MeshBasicMaterial({ color: 0xffd700 }) // Золотой
-        : new THREE.MeshBasicMaterial({ color: 0x808080 }); // Серый
+        ? new THREE.MeshBasicMaterial({ color: 0xffd700 })
+        : new THREE.MeshBasicMaterial({ color: 0x808080 });
       const cube = new THREE.Mesh(geometry, material);
-      cube.visible = false; // Скрываем до hit-test
+      cube.position.set(0, 0, -1); // Fallback-позиция
+      cube.visible = true; // Показываем сразу для отладки
       scene.add(cube);
       objectRef.current = cube;
+      addLog("Объект создан");
 
-      // Создаём ретикул для hit-test
-      const reticle = new THREE.Mesh(
-        new THREE.RingGeometry(0.15, 0.2, 32).rotateX(-Math.PI / 2),
-        new THREE.MeshBasicMaterial({ color: 0xffffff })
-      );
-      reticle.matrixAutoUpdate = false;
-      reticle.visible = false;
-      scene.add(reticle);
-      reticleRef.current = reticle;
-
-      // Настройка ARButton
+      // ARButton
       const button = ARButton.createButton(renderer, {
-        requiredFeatures: ["hit-test"],
-        optionalFeatures: ["dom-overlay", "local-floor"],
+        optionalFeatures: ["local-floor", "dom-overlay"],
         domOverlay: { root: document.body },
       });
       document.body.appendChild(button);
-      console.log("ARButton добавлен");
+      addLog("ARButton добавлен");
 
-      // Обработчики WebXR
-      renderer.xr.addEventListener("sessionstart", async () => {
-        console.log("WebXR сессия начата");
-        const session = renderer.xr.getSession();
-        try {
-          const viewerReferenceSpace = await session.requestReferenceSpace("viewer");
-          hitTestSourceRef.current = await session.requestHitTestSource({
-            space: viewerReferenceSpace,
-          });
-          hitTestSourceRequested.current = true;
-          console.log("Hit-test источник создан");
-        } catch (err) {
-          console.error("Ошибка настройки hit-test:", err);
-          // Fallback: размещаем объект в фиксированной позиции
-          objectRef.current.position.set(0, 0, -1); // 1 метр перед камерой
-          objectRef.current.visible = true;
-        }
+      // WebXR события
+      renderer.xr.addEventListener("sessionstart", () => {
+        addLog("WebXR сессия начата");
       });
 
       renderer.xr.addEventListener("sessionend", () => {
-        console.log("WebXR сессия завершена");
-        hitTestSourceRequested.current = false;
-        hitTestSourceRef.current = null;
+        addLog("WebXR сессия завершена");
         setArStarted(false);
       });
 
-      // Обработчик выбора (нажатия)
-      const onSelect = () => {
-        if (reticleRef.current.visible && objectRef.current) {
-          console.log("Объект размещён");
-          objectRef.current.position.setFromMatrixPosition(reticleRef.current.matrix);
-          objectRef.current.visible = true;
-        }
-      };
-
-      const controller = renderer.xr.getController(0);
-      controller.addEventListener("select", onSelect);
-      scene.add(controller);
-
-      // Анимация и рендеринг
+      // Анимация
       const animate = () => {
         renderer.setAnimationLoop((timestamp, frame) => {
-          if (!frame) return;
-
-          if (hitTestSourceRef.current && hitTestSourceRequested.current) {
-            const hitTestResults = frame.getHitTestResults(hitTestSourceRef.current);
-            if (hitTestResults.length) {
-              const hit = hitTestResults[0];
-              const hitPose = hit.getPose(renderer.xr.getReferenceSpace());
-              reticleRef.current.visible = true;
-              reticleRef.current.matrix.fromArray(hitPose.transform.matrix);
-              console.log("Hit-test: ретикул видим");
-            } else {
-              reticleRef.current.visible = false;
-              console.log("Hit-test: нет поверхности");
-            }
-          }
-
           if (objectRef.current) {
             objectRef.current.rotation.x += 0.01;
             objectRef.current.rotation.y += 0.01;
           }
-
           renderer.render(scene, camera);
+          addLog("Рендеринг кадра");
         });
       };
       animate();
 
       setArStarted(true);
-      console.log("AR-режим активирован");
     } catch (err) {
-      console.error("Ошибка при запуске AR:", err);
+      addLog(`Ошибка при запуске AR: ${err.message}`);
       setError("Не удалось запустить AR. Проверьте консоль и попробуйте снова.");
     }
   };
 
-  // Очистка ресурсов
+  // Очистка
   useEffect(() => {
     return () => {
       if (rendererRef.current) {
@@ -220,9 +175,7 @@ const ARLotteryView = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-          <h2 className="text-2xl font-bold text-black mb-4 text-center">
-            Ошибка
-          </h2>
+          <h2 className="text-2xl font-bold text-black mb-4 text-center">Ошибка</h2>
           <p className="text-red-600 text-center">{error}</p>
           <button
             onClick={() => navigate("/dashboard")}
@@ -239,12 +192,8 @@ const ARLotteryView = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-          <h2 className="text-2xl font-bold text-black mb-4 text-center">
-            Билет не найден
-          </h2>
-          <p className="text-gray-700 text-center">
-            Билет AR лотереи не найден или был удален.
-          </p>
+          <h2 className="text-2xl font-bold text-black mb-4 text-center">Билет не найден</h2>
+          <p className="text-gray-700 text-center">Билет AR лотереи не найден или был удален.</p>
           <button
             onClick={() => navigate("/dashboard")}
             className="mt-4 w-full py-2 px-4 bg-yellow-500 text-black font-semibold rounded-md hover:bg-yellow-600"
@@ -296,6 +245,11 @@ const ARLotteryView = () => {
           </div>
         </div>
       )}
+      <div className="absolute bottom-4 left-4 right-4 bg-black bg-opacity-50 text-white p-2 max-h-40 overflow-y-auto">
+        {logs.map((log, index) => (
+          <p key={index} className="text-sm">{log}</p>
+        ))}
+      </div>
       {!arStarted && (
         <div className="absolute top-4 left-4">
           <button
