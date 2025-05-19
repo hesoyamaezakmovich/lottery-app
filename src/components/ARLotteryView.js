@@ -5,6 +5,7 @@ import { supabase } from "../supabaseClient";
 import { ClipLoader } from "react-spinners";
 import * as THREE from "three";
 import { ARButton } from "three/examples/jsm/webxr/ARButton.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 const ARLotteryView = () => {
   const { id } = useParams();
@@ -19,6 +20,8 @@ const ARLotteryView = () => {
   const rendererRef = useRef(null);
   const cameraRef = useRef(null);
   const objectRef = useRef(null);
+  const mixerRef = useRef(null); // Для анимации
+  const clock = useRef(new THREE.Clock());
   const navigate = useNavigate();
 
   const addLog = (message) => {
@@ -69,18 +72,22 @@ const ARLotteryView = () => {
 
     // Проверка WebXR
     if (!navigator.xr) {
-      setError("WebXR не поддерживается. Используйте Chrome 81+.");
+      setError(
+        "WebXR не поддерживается. На iOS включите WebXR в настройках Safari (Дополнительно → Экспериментальные функции)."
+      );
       addLog("Ошибка: WebXR не поддерживается");
       return;
     }
 
     // Проверка immersive-ar
+    let isARSupported = false;
     try {
-      const isSupported = await navigator.xr.isSessionSupported("immersive-ar");
-      if (!isSupported) {
-        setError("AR-режим не поддерживается на этом устройстве.");
+      isARSupported = await navigator.xr.isSessionSupported("immersive-ar");
+      if (!isARSupported) {
+        setError(
+          "AR-режим не поддерживается. На iOS требуется iOS 16+ и включённый WebXR."
+        );
         addLog("Ошибка: immersive-ar не поддерживается");
-        return;
       }
     } catch (err) {
       addLog(`Ошибка проверки WebXR: ${err.message}`);
@@ -114,23 +121,61 @@ const ARLotteryView = () => {
       // Освещение
       const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
       scene.add(light);
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+      directionalLight.position.set(0, 1, 1);
+      scene.add(directionalLight);
 
-      // AR-объект
-      const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
-      const material = ticket?.is_win
-        ? new THREE.MeshStandardMaterial({ color: 0xffd700 })
-        : new THREE.MeshStandardMaterial({ color: 0x808080 });
-      const cube = new THREE.Mesh(geometry, material);
-      cube.position.set(0, 0, -0.5);
-      cube.visible = true;
-      scene.add(cube);
-      objectRef.current = cube;
-      addLog("Объект создан");
+      // Загрузка GLTF-модели (или куб как fallback)
+      const loader = new GLTFLoader();
+      const modelPath = ticket?.is_win
+        ? "/models/treasure_chest.glb"
+        : "/models/empty_chest.glb";
+      loader.load(
+        modelPath,
+        (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(0.1, 0.1, 0.1);
+          model.position.set(0, 0, -0.5);
+          model.visible = true;
+          scene.add(model);
+          objectRef.current = model;
+          addLog("Модель загружена");
+
+          // Настройка анимации
+          if (gltf.animations && gltf.animations.length > 0) {
+            mixerRef.current = new THREE.AnimationMixer(model);
+            const animation = gltf.animations[0];
+            const action = mixerRef.current.clipAction(animation);
+            action.setLoop(THREE.LoopOnce); // Анимация проигрывается один раз
+            action.clampWhenFinished = true; // Останавливается в конечном положении
+            action.play();
+            addLog("Анимация запущена");
+          } else {
+            addLog("Анимации не найдены");
+          }
+        },
+        (progress) => {
+          addLog(`Загрузка модели: ${Math.round((progress.loaded / progress.total) * 100)}%`);
+        },
+        (err) => {
+          addLog(`Ошибка загрузки модели: ${err.message}`);
+          // Fallback: создаём куб
+          const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+          const material = ticket?.is_win
+            ? new THREE.MeshStandardMaterial({ color: 0xffd700 })
+            : new THREE.MeshStandardMaterial({ color: 0x808080 });
+          const cube = new THREE.Mesh(geometry, material);
+          cube.position.set(0, 0, -0.5);
+          cube.visible = true;
+          scene.add(cube);
+          objectRef.current = cube;
+          addLog("Fallback: куб создан");
+        }
+      );
 
       // ARButton
       const button = ARButton.createButton(renderer, {
-        requiredFeatures: ["local-floor"],
-        optionalFeatures: ["dom-overlay"],
+        optionalFeatures: ["dom-overlay"], // Убрано local-floor для iOS
         domOverlay: { root: document.body },
       });
       document.body.appendChild(button);
@@ -139,9 +184,13 @@ const ARLotteryView = () => {
       // WebXR события
       renderer.xr.addEventListener("sessionstart", () => {
         addLog("WebXR сессия начата");
-        objectRef.current.position.set(0, 0, -0.5);
-        objectRef.current.visible = true;
-        addLog("Куб установлен в позицию");
+        if (objectRef.current) {
+          objectRef.current.position.set(0, 0, -0.5);
+          objectRef.current.visible = true;
+          addLog("Объект установлен в позицию");
+        }
+        const session = renderer.xr.getSession();
+        addLog(`XR режим: ${session?.mode || "нет"}`);
       });
 
       renderer.xr.addEventListener("sessionend", () => {
@@ -153,7 +202,7 @@ const ARLotteryView = () => {
       try {
         const permissionStatus = await navigator.permissions.query({ name: "camera" });
         if (permissionStatus.state === "denied") {
-          setError("Доступ к камере запрещён. Разрешите в настройках.");
+          setError("Доступ к камере запрещён. Разрешите в настройках Safari.");
           addLog("Ошибка: доступ к камере запрещён");
           return;
         }
@@ -166,8 +215,11 @@ const ARLotteryView = () => {
       let frameCount = 0;
       const animate = () => {
         renderer.setAnimationLoop((timestamp, frame) => {
+          const delta = clock.current.getDelta();
+          if (mixerRef.current) {
+            mixerRef.current.update(delta);
+          }
           if (objectRef.current) {
-            objectRef.current.rotation.x += 0.01;
             objectRef.current.rotation.y += 0.01;
           }
           renderer.render(scene, camera);
@@ -278,6 +330,19 @@ const ARLotteryView = () => {
               )}
             </div>
             <p className="text-sm mt-4">Направьте камеру на ровную поверхность</p>
+            {mixerRef.current && (
+              <button
+                onClick={() => {
+                  if (mixerRef.current) {
+                    mixerRef.current.clipAction(mixerRef.current.getRoot().animations[0]).reset().play();
+                    addLog("Анимация перезапущена");
+                  }
+                }}
+                className="mt-2 px-4 py-2 bg-blue-500 text-white rounded"
+              >
+                Перезапустить анимацию
+              </button>
+            )}
           </div>
         </div>
       )}
