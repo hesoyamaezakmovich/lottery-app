@@ -8,12 +8,14 @@ const Register = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
 
   const handleRegister = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setSuccess(false);
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
@@ -29,30 +31,58 @@ const Register = () => {
     }
 
     try {
+      console.log("Начинаем регистрацию пользователя:", email);
+      
+      // Регистрируем пользователя с подтверждением по почте
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/login`,
+        }
       });
-      console.log("Sign up response:", data, "Error:", signUpError);
 
+      console.log("Результат регистрации:", data, "Ошибка:", signUpError);
+      
       if (signUpError) throw signUpError;
-
+      
       if (data.user) {
-        const { error: profileError } = await supabase.from("profiles").insert({
-          id: data.user.id,
-          email: data.user.email,
-          created_at: new Date().toISOString(),
-        });
-        if (profileError) throw profileError;
+        console.log("Пользователь создан:", data.user);
+        setSuccess(true);
       }
-
-      navigate("/login");
     } catch (err) {
+      console.error("Ошибка при регистрации:", err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
+
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+          <h2 className="text-3xl font-bold text-black mb-6 text-center">
+            Регистрация успешна!
+          </h2>
+          <div className="text-center mb-6">
+            <p className="text-black mb-4">
+              На ваш email <strong>{email}</strong> отправлено письмо с подтверждением.
+            </p>
+            <p className="text-black">
+              Пожалуйста, проверьте вашу почту и перейдите по ссылке для активации аккаунта.
+            </p>
+          </div>
+          <button
+            onClick={() => navigate("/login")}
+            className="w-full py-2 px-4 bg-yellow-500 text-black font-semibold rounded-md hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+          >
+            Перейти на страницу входа
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
