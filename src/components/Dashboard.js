@@ -1,9 +1,15 @@
 import React from "react";
+import LotteryList from "./LotteryList";
 
 const Dashboard = () => {
   return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-      <h2 className="text-3xl font-bold text-white">Добро пожаловать в лотерею!</h2>
+    <div className="min-h-screen bg-gray-100">
+      <div className="max-w-4xl mx-auto py-8">
+        <h1 className="text-4xl font-bold text-black mb-8 text-center">
+          Добро пожаловать в лотерею!
+        </h1>
+        <LotteryList />
+      </div>
     </div>
   );
 };
