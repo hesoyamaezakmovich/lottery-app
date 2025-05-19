@@ -4,6 +4,7 @@ import { ClipLoader } from "react-spinners";
 import { useNavigate } from "react-router-dom";
 
 const AdminPanel = () => {
+  // Existing state variables...
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -21,14 +22,16 @@ const AdminPanel = () => {
   // Состояния для создания новой лотереи
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newLottery, setNewLottery] = useState({
-    name: "", // Добавляем поле name
+    name: "",
     prize_pool: 1000,
     draw_date: "",
+    ticket_price: 100, // Adding ticket price field
   });
   const [creatingLottery, setCreatingLottery] = useState(false);
 
   useEffect(() => {
     const checkAdmin = async () => {
+      // Existing admin check code...
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         navigate("/login");
@@ -68,6 +71,7 @@ const AdminPanel = () => {
   }, [navigate]);
 
   const fetchData = async () => {
+    // Existing fetchData function...
     setLoading(true);
     setError(null);
 
@@ -96,7 +100,8 @@ const AdminPanel = () => {
           purchased_at,
           is_winning,
           user_id,
-          lottery_draw_id
+          lottery_draw_id,
+          numbers
         `)
         .order("purchased_at", { ascending: false })
         .limit(20);
@@ -104,9 +109,13 @@ const AdminPanel = () => {
       if (ticketsError) throw ticketsError;
       setTickets(ticketsData || []);
 
+      const { data: ticketsCountData } = await supabase
+        .from("tickets")
+        .select("id", { count: "exact" });
+
       const statsObj = {
-        totalUsers: usersData?.length || 0,
-        totalTickets: ticketsData?.length || 0,
+        totalUsers: await supabase.from("users").select("id", { count: "exact" }).then(res => res.count || 0),
+        totalTickets: ticketsCountData?.length || 0,
         totalPrizePool: lotteriesData?.reduce((sum, lottery) => sum + (lottery.prize_pool || 0), 0) || 0,
         completedDraws: lotteriesData?.filter(l => l.is_completed).length || 0,
         activeDraws: lotteriesData?.filter(l => !l.is_completed).length || 0,
@@ -148,11 +157,17 @@ const AdminPanel = () => {
         throw new Error("Некорректный призовой фонд");
       }
 
+      const ticketPrice = parseFloat(newLottery.ticket_price);
+      if (isNaN(ticketPrice) || ticketPrice <= 0) {
+        throw new Error("Некорректная цена билета");
+      }
+
       const { error } = await supabase
         .from("lottery_draws")
         .insert([{
-          name: newLottery.name, // Добавляем название
+          name: newLottery.name,
           prize_pool: prizePool,
+          ticket_price: ticketPrice, // Save ticket price
           draw_date: new Date(newLottery.draw_date).toISOString(),
           is_completed: false,
           winning_numbers: null
@@ -163,9 +178,10 @@ const AdminPanel = () => {
       fetchData();
       setShowCreateForm(false);
       setNewLottery({
-        name: "", // Сбрасываем поле name
+        name: "",
         prize_pool: 1000,
         draw_date: "",
+        ticket_price: 100,
       });
       alert("Лотерея успешно создана!");
     } catch (err) {
@@ -210,6 +226,9 @@ const AdminPanel = () => {
       if (ticketsError) throw ticketsError;
 
       for (const ticket of ticketsData) {
+        // Skip tickets without numbers
+        if (!ticket.numbers) continue;
+        
         const ticketNumbers = ticket.numbers.split(",").map(n => parseInt(n.trim()));
         
         let matches = 0;
@@ -245,7 +264,7 @@ const AdminPanel = () => {
           if (prizeAmount > 0) {
             const { data: userData } = await supabase
               .from("users")
-              .select("balance")
+              .select("balance, vip_level, crystals")
               .eq("id", ticket.user_id)
               .single();
             
@@ -255,7 +274,8 @@ const AdminPanel = () => {
                 balance: (userData.balance || 0) + prizeAmount,
                 vip_level: matches === 6 ? 
                   Math.min((userData.vip_level || 0) + 2, 10) : 
-                  (matches >= 4 ? Math.min((userData.vip_level || 0) + 1, 10) : (userData.vip_level || 0))
+                  (matches >= 4 ? Math.min((userData.vip_level || 0) + 1, 10) : (userData.vip_level || 0)),
+                crystals: (userData.crystals || 0) + (matches >= 5 ? 50 : 0) // Bonus crystals for big wins
               })
               .eq("id", ticket.user_id);
           }
@@ -374,6 +394,22 @@ const AdminPanel = () => {
                   />
                 </div>
                 <div>
+                  <label htmlFor="ticket_price" className="block text-sm font-medium text-black mb-1">
+                    Цена билета (₽)
+                  </label>
+                  <input
+                    type="number"
+                    id="ticket_price"
+                    name="ticket_price"
+                    value={newLottery.ticket_price}
+                    onChange={handleInputChange}
+                    min="10"
+                    step="10"
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md"
+                  />
+                </div>
+                <div>
                   <label htmlFor="draw_date" className="block text-sm font-medium text-black mb-1">
                     Дата розыгрыша
                   </label>
@@ -405,6 +441,7 @@ const AdminPanel = () => {
                 <tr className="bg-gray-100">
                   <th className="px-4 py-2 text-left text-black">ID</th>
                   <th className="px-4 py-2 text-left text-black">Название</th>
+                  <th className="px-4 py-2 text-left text-black">Цена билета</th>
                   <th className="px-4 py-2 text-left text-black">Призовой фонд</th>
                   <th className="px-4 py-2 text-left text-black">Дата розыгрыша</th>
                   <th className="px-4 py-2 text-left text-black">Статус</th>
@@ -417,6 +454,7 @@ const AdminPanel = () => {
                   <tr key={lottery.id} className="border-b border-gray-200">
                     <td className="px-4 py-2 text-black">{lottery.id.slice(-6)}</td>
                     <td className="px-4 py-2 text-black">{lottery.name || "Без названия"}</td>
+                    <td className="px-4 py-2 text-black">{lottery.ticket_price || 100} ₽</td>
                     <td className="px-4 py-2 text-black">{lottery.prize_pool?.toFixed(2)} ₽</td>
                     <td className="px-4 py-2 text-black">
                       {new Date(lottery.draw_date).toLocaleString()}
@@ -495,6 +533,7 @@ const AdminPanel = () => {
                   <th className="px-4 py-2 text-left text-black">ID</th>
                   <th className="px-4 py-2 text-left text-black">Пользователь</th>
                   <th className="px-4 py-2 text-left text-black">Лотерея</th>
+                  <th className="px-4 py-2 text-left text-black">Номера</th>
                   <th className="px-4 py-2 text-left text-black">Дата покупки</th>
                   <th className="px-4 py-2 text-left text-black">Статус</th>
                 </tr>
@@ -505,6 +544,7 @@ const AdminPanel = () => {
                     <td className="px-4 py-2 text-black">{ticket.id.slice(-6)}</td>
                     <td className="px-4 py-2 text-black">{ticket.user_id.slice(-6)}</td>
                     <td className="px-4 py-2 text-black">{ticket.lottery_draw_id.slice(-6)}</td>
+                    <td className="px-4 py-2 text-black">{ticket.numbers || "—"}</td>
                     <td className="px-4 py-2 text-black">
                       {new Date(ticket.purchased_at).toLocaleString()}
                     </td>

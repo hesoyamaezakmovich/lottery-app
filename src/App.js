@@ -6,13 +6,14 @@ import Login from "./components/Login";
 import Dashboard from "./components/Dashboard";
 import Profile from "./components/Profile";
 import ResetPassword from "./components/ResetPassword";
-import AdminPanel from "./components/AdminPanel"; // Импортируем AdminPanel
+import AdminPanel from "./components/AdminPanel";
+import LotteryPage from "./components/LotteryPage"; // Импортируем новый компонент
 import { supabase } from "./supabaseClient";
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false); // Добавляем состояние для проверки прав администратора
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -77,6 +78,11 @@ function App() {
             <Route
               path="/admin"
               element={isAuthenticated && isAdmin ? <AdminPanel /> : <Navigate to="/login" />}
+            />
+            {/* Новый маршрут для страницы лотереи */}
+            <Route
+              path="/lottery/:id"
+              element={<LotteryPage />}
             />
           </Routes>
         </main>
