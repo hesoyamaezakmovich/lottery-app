@@ -1,8 +1,10 @@
+// src/components/LotteryList.js - Обновленная версия
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import { ClipLoader } from "react-spinners";
 import LotteryCard from "./LotteryCard";
+import ARLotteryCard from "./ARLotteryCard"; // Импорт компонента AR лотереи
 
 const LotteryList = () => {
   const [lotteries, setLotteries] = useState([]);
@@ -46,6 +48,11 @@ const LotteryList = () => {
   const handleLotterySelect = (lotteryId) => {
     navigate(`/lottery/${lotteryId}`);
   };
+  
+  // Переход к AR лотерее
+  const handleARLotteryPlay = () => {
+    navigate('/ar-lottery');
+  };
 
   if (loading) {
     return (
@@ -65,10 +72,25 @@ const LotteryList = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 py-8">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto px-4">
         <h2 className="text-3xl font-bold text-black mb-8 text-center">
           Активные лотереи
         </h2>
+        
+        {/* Секция AR лотереи */}
+        <div className="mb-10">
+          <h3 className="text-2xl font-bold text-black mb-4 px-4">AR Лотерея</h3>
+          <div className="bg-gradient-to-r from-blue-100 to-indigo-100 p-4 rounded-lg mb-6">
+            <p className="text-black">
+              Новинка! Попробуйте нашу лотерею с дополненной реальностью (AR). Отсканируйте QR-код и увидите свой выигрыш прямо перед собой!
+            </p>
+          </div>
+          <div className="max-w-sm mx-auto">
+            <ARLotteryCard onPlay={handleARLotteryPlay} />
+          </div>
+        </div>
+        
+        <h3 className="text-2xl font-bold text-black mb-4 px-4">Обычные лотереи</h3>
         {lotteries.length === 0 ? (
           <div className="bg-white p-8 rounded-lg shadow-md text-center">
             <p className="text-black mb-4">Нет доступных лотерей в данный момент</p>

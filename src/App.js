@@ -1,3 +1,4 @@
+// Обновление App.js для добавления маршрутов AR лотереи
 import { BrowserRouter as Router, Route, Routes, Navigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import Navbar from "./components/Navbar";
@@ -10,6 +11,9 @@ import AdminPanel from "./components/AdminPanel";
 import LotteryPage from "./components/LotteryPage";
 import InstantLotteries from "./components/InstantLotteries";
 import InstantLotteryGame from "./components/InstantLotteryGame";
+// Импортируем компоненты AR лотереи
+import ARLottery from "./components/ARLottery";  
+import ARLotteryView from "./components/ARLotteryView";
 import { supabase } from "./supabaseClient";
 
 function App() {
@@ -93,6 +97,19 @@ function App() {
             <Route
               path="/instant-lottery/:type"
               element={isAuthenticated ? <InstantLotteryGame /> : <Navigate to="/login" />}
+            />
+            {/* Новые маршруты для AR лотереи */}
+            <Route
+              path="/ar-lottery"
+              element={isAuthenticated ? <ARLottery /> : <Navigate to="/login" />}
+            />
+            <Route
+              path="/ar-lottery/:ticket_id"
+              element={isAuthenticated ? <ARLottery /> : <Navigate to="/login" />}
+            />
+            <Route
+              path="/ar-lottery/view/:id"
+              element={<ARLotteryView />}
             />
           </Routes>
         </main>
