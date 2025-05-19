@@ -17,7 +17,8 @@ const ARLotteryView = () => {
   const sceneRef = useRef(null);
   const rendererRef = useRef(null);
   const cameraRef = useRef(null);
-  const reticleRef = useRef(null); // Для маркера hit-test
+  const reticleRef = useRef(null);
+  const objectRef = useRef(null); // Для AR-объекта
   const hitTestSourceRef = useRef(null);
   const hitTestSourceRequested = useRef(false);
   const navigate = useNavigate();
@@ -36,7 +37,6 @@ const ARLotteryView = () => {
         if (error) throw error;
         setTicket(data);
 
-        // Отмечаем билет как просмотренный
         if (!data.viewed) {
           await supabase
             .from("ar_lottery_tickets")
@@ -54,20 +54,22 @@ const ARLotteryView = () => {
     fetchTicket();
   }, [id]);
 
-  // Инициализация AR сцены
+  // Инициализация AR
   const initAR = async () => {
+    console.log("Инициализация AR начата");
     if (!("xr" in navigator)) {
       setError(
-        "WebXR не поддерживается вашим браузером. Пожалуйста, используйте совместимое устройство и браузер."
+        "WebXR не поддерживается. Используйте совместимое устройство и браузер (Chrome 81+ или Safari 16+)."
       );
       return;
     }
 
     try {
-      // Инициализация сцены
+      // Создаём сцену
       const scene = new THREE.Scene();
       sceneRef.current = scene;
 
+      // Создаём камеру
       const camera = new THREE.PerspectiveCamera(
         70,
         window.innerWidth / window.innerHeight,
@@ -76,6 +78,7 @@ const ARLotteryView = () => {
       );
       cameraRef.current = camera;
 
+      // Создаём рендерер
       const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
       renderer.setPixelRatio(window.devicePixelRatio);
       renderer.setSize(window.innerWidth, window.innerHeight);
@@ -83,58 +86,71 @@ const ARLotteryView = () => {
       rendererRef.current = renderer;
       containerRef.current.appendChild(renderer.domElement);
 
-      // Добавляем освещение
+      // Освещение
       const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
       scene.add(light);
 
-      // Создаём объект в зависимости от результата билета
+      // Создаём AR-объект (куб)
       const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
       const material = ticket?.is_win
-        ? new THREE.MeshBasicMaterial({ color: 0xffd700 }) // Золотой для выигрыша
-        : new THREE.MeshBasicMaterial({ color: 0x808080 }); // Серый для проигрыша
+        ? new THREE.MeshBasicMaterial({ color: 0xffd700 }) // Золотой
+        : new THREE.MeshBasicMaterial({ color: 0x808080 }); // Серый
       const cube = new THREE.Mesh(geometry, material);
       cube.visible = false; // Скрываем до hit-test
       scene.add(cube);
+      objectRef.current = cube;
 
-      // Создаём ретикул (маркер для hit-test)
+      // Создаём ретикул для hit-test
       const reticle = new THREE.Mesh(
         new THREE.RingGeometry(0.15, 0.2, 32).rotateX(-Math.PI / 2),
-        new THREE.MeshBasicMaterial()
+        new THREE.MeshBasicMaterial({ color: 0xffffff })
       );
       reticle.matrixAutoUpdate = false;
       reticle.visible = false;
       scene.add(reticle);
       reticleRef.current = reticle;
 
-      // Добавляем ARButton
+      // Настройка ARButton
       const button = ARButton.createButton(renderer, {
         requiredFeatures: ["hit-test"],
-        optionalFeatures: ["dom-overlay"],
+        optionalFeatures: ["dom-overlay", "local-floor"],
         domOverlay: { root: document.body },
       });
       document.body.appendChild(button);
+      console.log("ARButton добавлен");
 
-      // Обработчик hit-test
+      // Обработчики WebXR
       renderer.xr.addEventListener("sessionstart", async () => {
+        console.log("WebXR сессия начата");
         const session = renderer.xr.getSession();
-        const viewerReferenceSpace = await session.requestReferenceSpace("viewer");
-        hitTestSourceRef.current = await session.requestHitTestSource({
-          space: viewerReferenceSpace,
-        });
-        hitTestSourceRequested.current = true;
+        try {
+          const viewerReferenceSpace = await session.requestReferenceSpace("viewer");
+          hitTestSourceRef.current = await session.requestHitTestSource({
+            space: viewerReferenceSpace,
+          });
+          hitTestSourceRequested.current = true;
+          console.log("Hit-test источник создан");
+        } catch (err) {
+          console.error("Ошибка настройки hit-test:", err);
+          // Fallback: размещаем объект в фиксированной позиции
+          objectRef.current.position.set(0, 0, -1); // 1 метр перед камерой
+          objectRef.current.visible = true;
+        }
       });
 
       renderer.xr.addEventListener("sessionend", () => {
+        console.log("WebXR сессия завершена");
         hitTestSourceRequested.current = false;
         hitTestSourceRef.current = null;
         setArStarted(false);
       });
 
-      // Анимация
+      // Обработчик выбора (нажатия)
       const onSelect = () => {
-        if (reticle.visible && cube) {
-          cube.position.setFromMatrixPosition(reticle.matrix);
-          cube.visible = true;
+        if (reticleRef.current.visible && objectRef.current) {
+          console.log("Объект размещён");
+          objectRef.current.position.setFromMatrixPosition(reticleRef.current.matrix);
+          objectRef.current.visible = true;
         }
       };
 
@@ -142,6 +158,7 @@ const ARLotteryView = () => {
       controller.addEventListener("select", onSelect);
       scene.add(controller);
 
+      // Анимация и рендеринг
       const animate = () => {
         renderer.setAnimationLoop((timestamp, frame) => {
           if (!frame) return;
@@ -151,15 +168,19 @@ const ARLotteryView = () => {
             if (hitTestResults.length) {
               const hit = hitTestResults[0];
               const hitPose = hit.getPose(renderer.xr.getReferenceSpace());
-              reticle.visible = true;
-              reticle.matrix.fromArray(hitPose.transform.matrix);
+              reticleRef.current.visible = true;
+              reticleRef.current.matrix.fromArray(hitPose.transform.matrix);
+              console.log("Hit-test: ретикул видим");
             } else {
-              reticle.visible = false;
+              reticleRef.current.visible = false;
+              console.log("Hit-test: нет поверхности");
             }
           }
 
-          cube.rotation.x += 0.01;
-          cube.rotation.y += 0.01;
+          if (objectRef.current) {
+            objectRef.current.rotation.x += 0.01;
+            objectRef.current.rotation.y += 0.01;
+          }
 
           renderer.render(scene, camera);
         });
@@ -167,18 +188,22 @@ const ARLotteryView = () => {
       animate();
 
       setArStarted(true);
+      console.log("AR-режим активирован");
     } catch (err) {
       console.error("Ошибка при запуске AR:", err);
-      setError("Не удалось запустить AR. Попробуйте снова.");
+      setError("Не удалось запустить AR. Проверьте консоль и попробуйте снова.");
     }
   };
 
-  // Очистка при размонтировании
+  // Очистка ресурсов
   useEffect(() => {
     return () => {
       if (rendererRef.current) {
+        rendererRef.current.setAnimationLoop(null);
         rendererRef.current.dispose();
-        containerRef.current?.removeChild(rendererRef.current.domElement);
+        if (containerRef.current && rendererRef.current.domElement) {
+          containerRef.current.removeChild(rendererRef.current.domElement);
+        }
       }
     };
   }, []);
@@ -233,47 +258,44 @@ const ARLotteryView = () => {
 
   return (
     <div className="h-screen relative">
-      <div ref={containerRef} className="absolute inset-0 bg-black">
-        {arStarted ? (
-          <div className="flex items-center justify-center h-full text-white">
-            <div className="text-center p-8 bg-black bg-opacity-70 rounded-lg">
-              <h2 className="text-xl font-bold mb-4">AR Режим активирован</h2>
-              <p>
-                {ticket.is_win
-                  ? `Поздравляем! Вы выиграли ${ticket.win_amount} ₽`
-                  : "К сожалению, вы не выиграли в этот раз"}
-              </p>
-              <div className="mt-4">
-                {ticket.is_win ? (
-                  <div className="text-6xl mb-2">💰</div>
-                ) : (
-                  <div className="text-6xl mb-2">📦</div>
-                )}
-              </div>
-            </div>
+      <div ref={containerRef} className="absolute inset-0 bg-black"></div>
+      {!arStarted ? (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="text-center text-white">
+            <h2 className="text-2xl font-bold mb-6">Просмотр результата лотереи</h2>
+            <p className="mb-8">
+              {ticket.is_win
+                ? `Поздравляем! Вы выиграли ${ticket.win_amount} ₽`
+                : "К сожалению, вы не выиграли в этот раз"}
+            </p>
+            <button
+              onClick={initAR}
+              className="px-6 py-3 bg-yellow-500 text-black font-bold rounded-lg hover:bg-yellow-600"
+            >
+              Запустить AR просмотр
+            </button>
           </div>
-        ) : (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center text-white">
-              <h2 className="text-2xl font-bold mb-6">
-                Просмотр результата лотереи
-              </h2>
-              <p className="mb-8">
-                {ticket.is_win
-                  ? `Поздравляем! Вы выиграли ${ticket.win_amount} ₽`
-                  : "К сожалению, вы не выиграли в этот раз"}
-              </p>
-              <button
-                onClick={initAR}
-                className="px-6 py-3 bg-yellow-500 text-black font-bold rounded-lg hover:bg-yellow-600"
-              >
-                Запустить AR просмотр
-              </button>
+        </div>
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center text-white">
+          <div className="text-center p-8 bg-black bg-opacity-70 rounded-lg">
+            <h2 className="text-xl font-bold mb-4">AR Режим активирован</h2>
+            <p>
+              {ticket.is_win
+                ? `Поздравляем! Вы выиграли ${ticket.win_amount} ₽`
+                : "К сожалению, вы не выиграли в этот раз"}
+            </p>
+            <div className="mt-4">
+              {ticket.is_win ? (
+                <div className="text-6xl mb-2">💰</div>
+              ) : (
+                <div className="text-6xl mb-2">📦</div>
+              )}
             </div>
+            <p className="text-sm mt-4">Направьте камеру на ровную поверхность</p>
           </div>
-        )}
-      </div>
-
+        </div>
+      )}
       {!arStarted && (
         <div className="absolute top-4 left-4">
           <button
