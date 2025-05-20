@@ -174,47 +174,137 @@ const ARLotteryView = () => {
   const playSpecificAnimation = (animationName, isWin) => {
     if (mixerRef.current && objectRef.current) {
       try {
+        // Сначала воспроизводим звук, чтобы он точно сработал
+        playSound(isWin ? "chestOpen" : "chestClose");
+        
+        // Проверяем наличие анимаций
         const animations = {};
-        if (objectRef.current.animations) {
+        let hasAnimations = false;
+        
+        if (objectRef.current.animations && objectRef.current.animations.length > 0) {
           objectRef.current.animations.forEach((clip) => {
             animations[clip.name] = mixerRef.current.clipAction(clip);
+            hasAnimations = true;
           });
-        } else if (mixerRef.current._root && mixerRef.current._root.animations) {
+          addLog(`Найдены анимации объекта: ${Object.keys(animations).join(', ')}`);
+        } 
+        
+        if (mixerRef.current._root && mixerRef.current._root.animations && mixerRef.current._root.animations.length > 0) {
           mixerRef.current._root.animations.forEach((clip) => {
             animations[clip.name] = mixerRef.current.clipAction(clip);
+            hasAnimations = true;
           });
+          addLog(`Найдены анимации в миксере: ${Object.keys(animations).join(', ')}`);
         }
-        addLog(`Доступные анимации: ${JSON.stringify(Object.keys(animations))}`);
+        
+        if (!hasAnimations) {
+          // Если нет анимаций, сделаем простую анимацию открытия сундука
+          addLog("Анимации не найдены, применяется простая анимация");
+          
+          // Простая анимация открытия крышки для сундука
+          if (objectRef.current.children && objectRef.current.children.length > 1) {
+            const lid = objectRef.current.children[1]; // Предполагаем, что крышка - второй элемент
+            
+            // Анимация открытия крышки
+            const startRotation = lid.rotation.x;
+            const targetRotation = -Math.PI / 2; // -90 градусов
+            const steps = 30;
+            let currentStep = 0;
+            
+            const animateLid = () => {
+              if (currentStep < steps) {
+                lid.rotation.x = startRotation + (targetRotation - startRotation) * (currentStep / steps);
+                currentStep++;
+                requestAnimationFrame(animateLid);
+              }
+            };
+            
+            animateLid();
+          } else {
+            // Если нет детей для анимации, просто поворачиваем весь объект
+            const startRotation = { x: objectRef.current.rotation.x, y: objectRef.current.rotation.y };
+            const targetRotation = { x: isWin ? Math.PI / 6 : -Math.PI / 6, y: startRotation.y + Math.PI };
+            const steps = 30;
+            let currentStep = 0;
+            
+            const animateObject = () => {
+              if (currentStep < steps) {
+                objectRef.current.rotation.x = startRotation.x + (targetRotation.x - startRotation.x) * (currentStep / steps);
+                objectRef.current.rotation.y = startRotation.y + (targetRotation.y - startRotation.y) * (currentStep / steps);
+                currentStep++;
+                requestAnimationFrame(animateObject);
+              }
+            };
+            
+            animateObject();
+          }
+          
+          setAnimationPlayed(true);
+          return;
+        }
+        
+        // Если анимации найдены, пытаемся найти нужную
         let actionToPlay;
+        
+        // Ищем подходящую анимацию
+        const animationNames = Object.keys(animations);
+        addLog(`Доступные анимации: ${animationNames.join(', ')}`);
+        
+        // Попытка найти специфичную анимацию
         if (isWin) {
-          actionToPlay = animations["HarrisChestClips"] || Object.values(animations)[0];
+          for (const name of animationNames) {
+            if (name.toLowerCase().includes('open') || 
+                name.toLowerCase().includes('chest') || 
+                name.toLowerCase().includes('win')) {
+              actionToPlay = animations[name];
+              addLog(`Выбрана анимация выигрыша: ${name}`);
+              break;
+            }
+          }
         } else {
-          actionToPlay = animations["CTRL_L_Handle|HarrisChestClips|BaseLaye"] || Object.values(animations)[0];
+          for (const name of animationNames) {
+            if (name.toLowerCase().includes('close') || 
+                name.toLowerCase().includes('handle') || 
+                name.toLowerCase().includes('lose')) {
+              actionToPlay = animations[name];
+              addLog(`Выбрана анимация проигрыша: ${name}`);
+              break;
+            }
+          }
         }
+        
+        // Если не нашли подходящую анимацию, используем первую доступную
+        if (!actionToPlay && animationNames.length > 0) {
+          actionToPlay = animations[animationNames[0]];
+          addLog(`Используется первая доступная анимация: ${animationNames[0]}`);
+        }
+        
         if (actionToPlay) {
+          // Останавливаем все текущие анимации
           Object.values(animations).forEach((action) => {
             if (action.isRunning()) action.stop();
           });
+          
+          // Настраиваем и запускаем анимацию
           actionToPlay.setLoop(THREE.LoopOnce);
           actionToPlay.clampWhenFinished = true;
           actionToPlay.reset().play();
           addLog(`Запущена анимация: ${actionToPlay._clip.name}`);
-          playSound(isWin ? "chestOpen" : "chestClose");
+          
           setAnimationPlayed(true);
         } else {
-          addLog("Подходящая анимация не найдена, воспроизведение звука без анимации");
-          playSound(isWin ? "chestOpen" : "chestClose");
+          addLog("Подходящая анимация не найдена");
           setAnimationPlayed(true);
         }
       } catch (err) {
         addLog(`Ошибка воспроизведения анимации: ${err.message}`);
         console.error("Ошибка анимации:", err);
-        playSound(isWin ? "chestOpen" : "chestClose"); // Fallback на звук
         setAnimationPlayed(true);
       }
     } else {
       addLog("Миксер или объект не инициализированы");
-      playSound(isWin ? "chestOpen" : "chestClose"); // Fallback на звук
+      // Воспроизводим звук в любом случае
+      playSound(isWin ? "chestOpen" : "chestClose");
       setAnimationPlayed(true);
     }
   };
@@ -291,9 +381,9 @@ const ARLotteryView = () => {
           }
 
           const model = gltf.scene;
-          // Уменьшаем размер модели
-          model.scale.set(0.2, 0.2, 0.2); // Было 0.5, делаем меньше
-          model.position.set(0, 0, -0.5);
+          // Еще сильнее уменьшаем размер модели
+          model.scale.set(0.08, 0.08, 0.08); // Было 0.5, делаем гораздо меньше
+          model.position.set(0, 0, -0.8); // Располагаем ближе к камере
           model.rotation.y = Math.PI / 4;
           model.visible = true;
           scene.add(model);
@@ -302,10 +392,8 @@ const ARLotteryView = () => {
 
           if (gltf.animations && gltf.animations.length > 0) {
             mixerRef.current = new THREE.AnimationMixer(model);
-            const animations = {};
             gltf.animations.forEach((clip) => {
-              const action = mixerRef.current.clipAction(clip);
-              animations[clip.name] = action;
+              mixerRef.current.clipAction(clip); // Добавляем действия анимации
               addLog(`Анимация загружена: ${clip.name}`);
             });
             mixerRef.current.addEventListener("finished", (e) => {
@@ -314,7 +402,27 @@ const ARLotteryView = () => {
             playSpecificAnimation(null, ticket.is_win);
           } else {
             addLog("Анимации не найдены, используется статичная модель");
-            playSound(ticket.is_win ? "chestOpen" : "chestClose"); // Fallback на звук
+            // Проверяем, были ли загружены звуки
+            if (!sounds.chestOpen || !sounds.chestOpen.buffer) {
+              addLog("Звуки не были загружены, повторная попытка");
+              // Создаем звуки вручную, если они не были загружены
+              const audioContext = THREE.AudioContext.getContext();
+              if (audioContext.state === "suspended") {
+                audioContext.resume();
+              }
+              
+              const listener = new THREE.AudioListener();
+              cameraRef.current.add(listener);
+              
+              const sound = new THREE.Audio(listener);
+              sound.setVolume(1.0);
+              
+              // Воспроизводим звук без буфера (создаст простой звук)
+              playSound(ticket.is_win ? "chestOpen" : "chestClose");
+            } else {
+              // Если звуки загружены, просто воспроизводим их
+              playSound(ticket.is_win ? "chestOpen" : "chestClose");
+            }
           }
         },
         (progress) => {
@@ -415,14 +523,14 @@ const ARLotteryView = () => {
         const pose = hit.getPose(referenceSpace);
         
         if (pose) {
-          // Уменьшаем размер и корректируем положение объекта
-          objectRef.current.scale.set(0.15, 0.15, 0.15); // Уменьшаем размер в AR-режиме
+          // Уменьшаем размер еще больше
+          objectRef.current.scale.set(0.1, 0.1, 0.1); // Сильно уменьшаем размер в AR-режиме
           
           // Размещаем объект на найденной поверхности
           const matrix = new THREE.Matrix4().fromArray(pose.transform.matrix);
           const position = new THREE.Vector3().setFromMatrixPosition(matrix);
-          // Поднимаем сундук чуть выше поверхности
-          position.y += 0.05;
+          
+          // Устанавливаем сундук ПРЯМО на поверхность (без поднятия)
           objectRef.current.position.copy(position);
           
           // Направляем объект к камере
@@ -437,10 +545,8 @@ const ARLotteryView = () => {
           objectRef.current.visible = true;
           addLog(`Объект размещен: ${position.x.toFixed(2)}, ${position.y.toFixed(2)}, ${position.z.toFixed(2)}`);
           
-          // Запускаем анимацию после короткой задержки
-          setTimeout(() => {
-            playSpecificAnimation(null, ticket.is_win);
-          }, 500);
+          // Запускаем анимацию НЕМЕДЛЕННО, без задержки
+          playSpecificAnimation(null, ticket.is_win);
           
           // Отписываемся от hit-test после размещения
           hitTestSource.current.cancel();
@@ -558,12 +664,13 @@ const ARLotteryView = () => {
           setTimeout(() => {
             if (objectRef.current && !objectRef.current.visible) {
               addLog("Hit-test не сработал, размещение сундука по умолчанию");
-              objectRef.current.position.set(0, 0, -0.8); // Ближе к камере
-              objectRef.current.scale.set(0.1, 0.1, 0.1); // Меньше по размеру
+              objectRef.current.position.set(0, 0, -1.0); // Прямо перед камерой
+              objectRef.current.scale.set(0.08, 0.08, 0.08); // Совсем маленький размер
+              objectRef.current.rotation.set(0, 0, 0); // Сброс вращения
               objectRef.current.visible = true;
               playSpecificAnimation(null, ticket.is_win);
             }
-          }, 5000); // Увеличиваем тайм-аут до 5 секунд
+          }, 3000); // Уменьшаем тайм-аут до 3 секунд
         });
 
         renderer.xr.addEventListener("sessionend", () => {
@@ -741,7 +848,7 @@ const ARLotteryView = () => {
       )}
       <div
         className="absolute top-4 left-4 right-4 bg-black bg-opacity-50 text-white p-2 max-h-40 overflow-y-auto z-20"
-        style={{ display: "none" }} // Скрываем логи по умолчанию, можно переключить на "block" для отладки
+        style={{ display: "block" }} // Показываем логи для отладки
       >
         {logs.map((log, index) => (
           <p key={index} className="text-xs">
