@@ -1,10 +1,49 @@
+/* Additional CSS for index.css to fix white margin issues */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: 'Roboto', sans-serif;
+html, body, #root {
   margin: 0;
   padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow-x: hidden;
   box-sizing: border-box;
+  background: linear-gradient(to bottom, #663399, #5B21B6);
+  font-family: 'Roboto', sans-serif;
+}
+
+/* Fix to remove any potential white margins */
+* {
+  box-sizing: border-box;
+}
+
+/* Stretch all main containers to full width */
+main, div.min-h-screen {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* Улучшение шрифтов и теней для текста */
+h3 {
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+p {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Улучшение кнопок */
+button {
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+/* Fix for mobile viewports */
+@media (max-width: 640px) {
+  body, html, #root {
+    width: 100vw;
+    overflow-x: hidden;
+  }
 }
