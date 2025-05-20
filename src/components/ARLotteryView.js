@@ -136,6 +136,25 @@ const ARLotteryView = () => {
     }
   };
 
+
+  const isInEmulator = new URLSearchParams(window.location.search).has('emulator');
+
+    if (isInEmulator) {
+      // Принудительно включаем AR режим для эмулятора
+      setArSupported(true);
+      setIsWebXRSupported(true);
+      console.log("Запуск в режиме эмуляции WebXR");
+  
+  // В функции initAR можно добавить:
+      if (isInEmulator) {
+    // Пропускаем проверки поддержки AR
+    // И устанавливаем начальное положение объекта для лучшей видимости в эмуляторе
+        if (objectRef.current) {
+          objectRef.current.position.set(0, 0, -1);
+          objectRef.current.visible = true;
+        }
+      }
+    }
   // Загрузка звуковых эффектов
   const loadSounds = (scene) => {
     if (!listener.current) {
