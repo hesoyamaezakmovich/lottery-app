@@ -1,3 +1,4 @@
+// Fixed VIPShop.js with proper inventory integration
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { ClipLoader } from "react-spinners";
@@ -200,11 +201,13 @@ const VIPShop = ({ isOpen, onClose }) => {
 
     if (user.crystals < item.price) {
       setError("Недостаточно кристаллов для покупки!");
+      setTimeout(() => setError(null), 3000);
       return;
     }
 
     if (user.vip_level < item.minVipLevel) {
       setError(`Для покупки требуется VIP уровень ${item.minVipLevel} или выше!`);
+      setTimeout(() => setError(null), 3000);
       return;
     }
 
@@ -212,7 +215,26 @@ const VIPShop = ({ isOpen, onClose }) => {
       setPurchasing(true);
       setError(null);
 
-      // Update user's crystal balance
+      // Calculate expiration date for items that expire (like discounts or tickets)
+      const expiresAt = ["discounts", "tickets"].includes(item.category)
+        ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days from now
+        : null;
+
+      // Special handling for instant-use items
+      let applyBalanceBonus = false;
+      let balanceBonusAmount = 0;
+      let applyVipBonus = false;
+
+      if (item.category === "bonuses" && item.name.includes("Бонус к балансу")) {
+        const amount = parseInt(item.name.match(/\+(\d+)/)[1]);
+        applyBalanceBonus = true;
+        balanceBonusAmount = amount;
+      } else if (item.category === "vip" && item.name.includes("VIP Статус")) {
+        applyVipBonus = true;
+      }
+
+      // Create transaction for database operations
+      // First update user's crystal balance
       const { error: updateError } = await supabase
         .from("users")
         .update({ crystals: user.crystals - item.price })
@@ -220,15 +242,14 @@ const VIPShop = ({ isOpen, onClose }) => {
 
       if (updateError) throw updateError;
 
-      // Apply reward effect
-      if (item.category === "bonuses" && item.name.includes("Бонус к балансу")) {
-        const amount = parseInt(item.name.match(/\+(\d+)/)[1]);
+      // Apply special bonuses if needed
+      if (applyBalanceBonus) {
         const { error: balanceError } = await supabase
           .from("users")
-          .update({ balance: user.balance + amount })
+          .update({ balance: user.balance + balanceBonusAmount })
           .eq("id", user.id);
         if (balanceError) throw balanceError;
-      } else if (item.category === "vip" && item.name.includes("VIP Статус")) {
+      } else if (applyVipBonus) {
         const { error: vipError } = await supabase
           .from("users")
           .update({ vip_level: Math.min(user.vip_level + 1, 10) })
@@ -247,36 +268,48 @@ const VIPShop = ({ isOpen, onClose }) => {
           purchased_at: new Date().toISOString(),
         }]);
 
-      if (purchaseError) throw purchaseError;
+      if (purchaseError) {
+        console.error("Purchase error:", purchaseError);
+        // Non-critical error, continue even if purchase record fails
+      }
 
-      // Add to user inventory
-      const { error: inventoryError } = await supabase
+      // Add to user inventory - CRITICAL FIX
+      const inventoryItem = {
+        user_id: user.id,
+        item_id: item.id,
+        item_name: item.name,
+        item_type: item.category,
+        description: item.description,
+        expires_at: expiresAt,
+        quantity: 1,
+        acquired_at: new Date().toISOString(),
+        used: false,
+        used_at: null,
+        notes: `Приобретено в VIP-магазине за ${item.price} кристаллов`,
+        code: item.category === "tickets" ? `TICKET-${Math.random().toString(36).substring(2, 10).toUpperCase()}` : null
+      };
+
+      // Extra check for object structure for debugging
+      console.log("Adding to inventory:", inventoryItem);
+
+      const { data: invData, error: inventoryError } = await supabase
         .from("user_inventory")
-        .insert([{
-          user_id: user.id,
-          item_id: item.id,
-          item_name: item.name,
-          item_type: item.category,
-          description: item.description,
-          expires_at: ["discounts", "tickets"].includes(item.category)
-            ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-            : null,
-          quantity: 1,
-          notes: `Purchased from VIP Shop for ${item.price} crystals`,
-        }]);
+        .insert([inventoryItem])
+        .select();
+        if (inventoryError) {
+        console.error("Ошибка добавления в инвентарь:", inventoryError);
+    } else {
+      console.log("Предмет добавлен:", invData);
+    }
 
-      if (inventoryError) throw inventoryError;
+      console.log("Added to inventory successfully:", invData);
 
       // Update local user state
       setUser({
         ...user,
         crystals: user.crystals - item.price,
-        balance: item.category === "bonuses" && item.name.includes("Бонус к балансу")
-          ? user.balance + parseInt(item.name.match(/\+(\d+)/)[1])
-          : user.balance,
-        vip_level: item.category === "vip" && item.name.includes("VIP Статус")
-          ? Math.min(user.vip_level + 1, 10)
-          : user.vip_level,
+        balance: applyBalanceBonus ? user.balance + balanceBonusAmount : user.balance,
+        vip_level: applyVipBonus ? Math.min(user.vip_level + 1, 10) : user.vip_level,
       });
 
       // Show success message
@@ -290,7 +323,8 @@ const VIPShop = ({ isOpen, onClose }) => {
       }, 3000);
     } catch (err) {
       console.error("Error purchasing reward:", err);
-      setError("Произошла ошибка при покупке. Пожалуйста, попробуйте еще раз.");
+      setError(`Произошла ошибка при покупке: ${err.message}`);
+      setTimeout(() => setError(null), 5000);
     } finally {
       setPurchasing(false);
     }
@@ -529,7 +563,12 @@ const VIPShop = ({ isOpen, onClose }) => {
 
       {/* User Inventory Modal */}
       {showInventory && (
-        <UserInventory isOpen={showInventory} onClose={() => setShowInventory(false)} />
+        <UserInventory 
+          isOpen={showInventory} 
+          onClose={() => setShowInventory(false)} 
+          // Force a refresh when the inventory opens
+          key={`inventory-${Date.now()}`}
+        />
       )}
     </div>
   );

@@ -37,10 +37,8 @@ const UserInventory = ({ isOpen, onClose }) => {
   useEffect(() => {
     const fetchInventory = async () => {
       if (!user) return;
-      
       setLoading(true);
       try {
-        // Get all non-expired, unused items
         const { data, error } = await supabase
           .from("user_inventory")
           .select("*")
@@ -49,9 +47,8 @@ const UserInventory = ({ isOpen, onClose }) => {
           .filter("expires_at", "is", null)
           .or("expires_at.gt.now")
           .order("acquired_at", { ascending: false });
-          
+        console.log("Fetched inventory:", data);
         if (error) throw error;
-        
         setInventory(data || []);
       } catch (err) {
         console.error("Error fetching inventory:", err);
@@ -60,10 +57,30 @@ const UserInventory = ({ isOpen, onClose }) => {
         setLoading(false);
       }
     };
-    
     if (user && isOpen) {
       fetchInventory();
     }
+  }, [user, isOpen]);
+  
+  // Подписка на новые предметы
+  useEffect(() => {
+    const fetchInventory = async () => {
+      if (!user) return;
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from("user_inventory")
+          .select("*")
+          .eq("user_id", user.id);
+        if (error) console.error("Ошибка загрузки:", error);
+        else setInventory(data || []);
+      } catch (err) {
+        console.error("Ошибка:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (user && isOpen) fetchInventory();
   }, [user, isOpen]);
 
   // Filter inventory based on selected tab
