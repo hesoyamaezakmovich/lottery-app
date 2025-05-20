@@ -1,4 +1,4 @@
-// Обновленный компонент ARLottery.js для лучшей поддержки iOS
+// Обновленный компонент ARLottery.js для лучшей поддержки AR
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { ClipLoader } from "react-spinners";
@@ -90,8 +90,21 @@ const ARLottery = () => {
           // Генерируем QR-код с URL для просмотра AR-результата
           setQrValue(`${window.location.origin}/ar-lottery/view/${ticketData.id}`);
         } else {
+          // Проверяем баланс пользователя
+          if (user.balance < 75) {
+            throw new Error("Недостаточно средств для покупки билета AR лотереи. Требуется 75 ₽.");
+          }
+          
+          // Списываем стоимость билета с баланса пользователя
+          const { error: balanceError } = await supabase
+            .from("users")
+            .update({ balance: user.balance - 75 })
+            .eq("id", user.id);
+            
+          if (balanceError) throw balanceError;
+          
           // Создаем новый билет AR лотереи
-          const isWin = Math.random() < 0.3; // 30% шанс выигрыша
+          const isWin = Math.random() < 0.25; // 25% шанс выигрыша
           const winAmount = isWin ? Math.floor(Math.random() * 900) + 100 : 0; // от 100 до 1000 руб
 
           const { data: newTicket, error: createError } = await supabase
@@ -109,6 +122,16 @@ const ARLottery = () => {
             .select();
 
           if (createError) throw createError;
+          
+          // Начисляем выигрыш, если билет выигрышный
+          if (isWin && winAmount > 0) {
+            const { error: updateBalanceError } = await supabase
+              .from("users")
+              .update({ balance: user.balance - 75 + winAmount }) // Списываем стоимость и начисляем выигрыш
+              .eq("id", user.id);
+              
+            if (updateBalanceError) throw updateBalanceError;
+          }
 
           setResult(newTicket[0]);
           // Генерируем QR-код с URL для просмотра AR-результата
@@ -210,10 +233,10 @@ const ARLottery = () => {
           </h2>
           <p className="text-red-600 text-center">{error}</p>
           <button
-            onClick={() => window.location.reload()}
+            onClick={() => navigate("/dashboard")}
             className="mt-4 w-full py-2 px-4 bg-yellow-500 text-black font-semibold rounded-md hover:bg-yellow-600"
           >
-            Попробовать снова
+            Вернуться на главную
           </button>
         </div>
       </div>
@@ -306,6 +329,7 @@ const ARLottery = () => {
             </p>
 
             <ol className="list-decimal pl-5 space-y-2 text-black">
+              <li>Покупка билета автоматически списывает 75₽ с вашего баланса</li>
               <li>Получите QR-код для вашего билета</li>
               <li>
                 Отсканируйте его с помощью камеры на другом устройстве или нажмите
@@ -313,6 +337,8 @@ const ARLottery = () => {
               </li>
               <li>Направьте камеру на ровную поверхность</li>
               <li>Увидите объект в AR, который покажет результат вашей лотереи</li>
+              <li>Шанс выигрыша составляет 25%</li>
+              <li>Размер выигрыша от 100₽ до 1000₽</li>
             </ol>
 
             <p className="text-black">

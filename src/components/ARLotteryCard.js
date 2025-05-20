@@ -1,7 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "../supabaseClient";
-import { ClipLoader } from "react-spinners";
+import React from "react";
 import { motion } from "framer-motion";
 
 const ARLotteryCard = ({ onPlay }) => {
@@ -29,6 +26,9 @@ const ARLotteryCard = ({ onPlay }) => {
           </p>
           <p className="text-white text-center text-sm">
             Шанс выигрыша: 25%
+          </p>
+          <p className="text-white text-center text-sm mt-1">
+            Выигрыш до 1000 ₽
           </p>
         </div>
         <p className="text-white text-sm text-center mb-4">
