@@ -300,14 +300,14 @@ const ARLotteryView = () => {
       setError("Билет не найден");
       return;
     }
-
+  
     addLog("Инициализация AR режима");
     if (!isWebXRSupported || isIOS) {
       addLog("WebXR не поддерживается или устройство iOS, запуск 3D режима");
       init3DMode();
       return;
     }
-
+  
     try {
       const scene = new THREE.Scene();
       sceneRef.current = scene;
@@ -326,29 +326,29 @@ const ARLotteryView = () => {
         addLog("Контейнер не найден");
         throw new Error("Контейнер не найден");
       }
-
+  
       const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
       scene.add(ambientLight);
       const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
       directionalLight.position.set(0, 1, 1);
       scene.add(directionalLight);
-
+  
       loadSounds(scene);
       activateAudioContext();
-
+  
       const loader = new GLTFLoader();
       const chestModelPath = ticket.is_win ? "/models/treasure_chest_win.glb" : "/models/treasure_chest_lose.glb";
-
+  
       loader.load(
         chestModelPath,
         (gltf) => {
           const model = gltf.scene;
-          model.scale.set(0.1, 0.1, 0.1); // Унифицированный масштаб для AR
-          model.visible = false; // Изначально невидим, пока не размещен
+          model.scale.set(0.1, 0.1, 0.1); // Унифицированный масштаб
+          model.visible = false; // Изначально невидим
           scene.add(model);
           objectRef.current = model;
           addLog(`Модель сундука загружена для AR: ${chestModelPath}`);
-
+  
           if (gltf.animations && gltf.animations.length > 0) {
             mixerRef.current = new THREE.AnimationMixer(model);
             gltf.animations.forEach((clip) => {
@@ -373,39 +373,39 @@ const ARLotteryView = () => {
             color: ticket.is_win ? 0xffd700 : 0x8b4513,
           });
           const box = new THREE.Mesh(boxGeometry, boxMaterial);
-          box.visible = false;
+          box.visible = true; // Резервный сундук виден сразу
+          box.position.set(0, 0, -1.0); // Позиция ближе к камере
           scene.add(box);
           objectRef.current = box;
           addLog("Создан резервный сундук для AR");
         }
       );
-
+  
+      // Отключаем hit-test для тестирования
       const button = ARButton.createButton(renderer, {
-        requiredFeatures: ["hit-test"],
+        requiredFeatures: [], // Убираем hit-test
         optionalFeatures: ["dom-overlay"],
         domOverlay: { root: document.body },
       });
       document.body.appendChild(button);
-
+  
       renderer.xr.addEventListener("sessionstart", () => {
         addLog("WebXR сессия начата");
         activateAudioContext();
         hitTestSourceRequested.current = false;
         renderer.setAnimationLoop(onXRFrame);
-
-        // Fallback для размещения сундука
-        setTimeout(() => {
-          if (objectRef.current && !objectRef.current.visible) {
-            addLog("Hit-test не сработал, размещение сундука по умолчанию");
-            objectRef.current.position.set(0, -0.5, -1.0); // Размещаем ближе к камере
-            objectRef.current.scale.set(0.1, 0.1, 0.1); // Унифицированный масштаб
-            objectRef.current.rotation.set(0, 0, 0);
-            objectRef.current.visible = true; // Убедимся, что сундук виден
-            playSpecificAnimation(ticket.is_win);
-          }
-        }, 2000); // Уменьшенный таймер для быстрого fallback
+  
+        // Немедленный fallback
+        if (objectRef.current && !objectRef.current.visible) {
+          addLog("Размещение сундука по умолчанию (без ожидания)");
+          objectRef.current.position.set(0, 0, -1.0); // Ближе к камере
+          objectRef.current.scale.set(0.1, 0.1, 0.1);
+          objectRef.current.rotation.set(0, 0, 0);
+          objectRef.current.visible = true; // Убедимся, что виден
+          playSpecificAnimation(ticket.is_win);
+        }
       });
-
+  
       renderer.xr.addEventListener("sessionend", () => {
         addLog("WebXR сессия завершена");
         renderer.setAnimationLoop(null);
@@ -415,7 +415,7 @@ const ARLotteryView = () => {
           hitTestSource.current = null;
         }
       });
-
+  
       setArStarted(true);
     } catch (err) {
       addLog(`Ошибка инициализации AR: ${err.message}`);
@@ -597,60 +597,22 @@ const ARLotteryView = () => {
   // Оптимизированный метод для hit-testing в AR
   const onXRFrame = (time, frame) => {
     if (!cameraRef.current || !rendererRef.current || !sceneRef.current) return;
-
-    const session = frame.session;
-
-    if (!hitTestSourceRequested.current) {
-      session.requestReferenceSpace("viewer").then((referenceSpace) => {
-        session.requestHitTestSource({ space: referenceSpace }).then((source) => {
-          hitTestSource.current = source;
-          addLog("Hit-test source инициализирован");
-        }).catch((err) => {
-          addLog(`Ошибка инициализации hit-test source: ${err.message}`);
-        });
-      }).catch((err) => {
-        addLog(`Ошибка получения referenceSpace: ${err.message}`);
-      });
-      hitTestSourceRequested.current = true;
+  
+    // Удаляем логику hit-test для упрощения
+    if (objectRef.current && !objectRef.current.visible) {
+      addLog("Размещение сундука по умолчанию в XR");
+      objectRef.current.position.set(0, 0, -1.0);
+      objectRef.current.scale.set(0.1, 0.1, 0.1);
+      objectRef.current.rotation.set(0, 0, 0);
+      objectRef.current.visible = true; // Убедимся, что виден
+      playSpecificAnimation(ticket.is_win);
     }
-
-    if (hitTestSource.current && objectRef.current && !objectRef.current.visible) {
-      const hitTestResults = frame.getHitTestResults(hitTestSource.current);
-
-      if (hitTestResults.length > 0) {
-        addLog(`Найдена поверхность: ${hitTestResults.length} результат(ов)`);
-        const hit = hitTestResults[0];
-        const referenceSpace = rendererRef.current.xr.getReferenceSpace();
-        const pose = hit.getPose(referenceSpace);
-
-        if (pose) {
-          objectRef.current.scale.set(0.1, 0.1, 0.1); // Унифицированный масштаб
-          const matrix = new THREE.Matrix4().fromArray(pose.transform.matrix);
-          const position = new THREE.Vector3().setFromMatrixPosition(matrix);
-          objectRef.current.position.copy(position);
-
-          const cameraPosition = new THREE.Vector3();
-          cameraRef.current.getWorldPosition(cameraPosition);
-          const direction = new THREE.Vector3().subVectors(cameraPosition, position).normalize();
-          direction.y = 0;
-          if (direction.length() > 0.001) {
-            objectRef.current.lookAt(cameraPosition.x, position.y, cameraPosition.z);
-          }
-
-          objectRef.current.visible = true; // Убедимся, что сундук виден
-          addLog(`Объект размещен: ${position.x.toFixed(2)}, ${position.y.toFixed(2)}, ${position.z.toFixed(2)}`);
-          playSpecificAnimation(ticket.is_win);
-          hitTestSource.current.cancel();
-          hitTestSource.current = null;
-        }
-      }
-    }
-
+  
     if (mixerRef.current) {
       const delta = clock.current.getDelta();
       mixerRef.current.update(delta);
     }
-
+  
     rendererRef.current.render(sceneRef.current, cameraRef.current);
   };
 
