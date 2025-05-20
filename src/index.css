@@ -47,3 +47,53 @@ button {
     overflow-x: hidden;
   }
 }
+
+/* Специальные стили для AR-компонента */
+/* Добавьте эти стили в index.css или создайте отдельный файл стилей */
+
+/* Сброс стилей для AR-контейнера */
+.ar-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: transparent; /* Важно! Прозрачный фон для AR */
+  z-index: 9999; /* Высокий z-index чтобы быть поверх всех элементов */
+}
+
+/* Стили для canvas внутри AR контейнера */
+.ar-container canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* Скрываем все другие элементы страницы при активном AR */
+body.ar-active {
+  overflow: hidden;
+  background: transparent !important;
+}
+
+body.ar-active #root > *:not(.ar-page) {
+  display: none !important;
+}
+
+/* Сброс для элементов-обёрток React Router */
+.ar-page {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  overflow: hidden;
+}

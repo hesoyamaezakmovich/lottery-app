@@ -6,6 +6,13 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
+// Компонент оверлея для отображения сообщений поверх AR-представления
+const AROverlay = ({ children, className }) => (
+  <div className={`fixed z-50 p-4 bg-black bg-opacity-60 text-white rounded-lg shadow-lg ${className}`}>
+    {children}
+  </div>
+);
+
 const ARLotteryView = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -19,6 +26,7 @@ const ARLotteryView = () => {
   const [permissionGranted, setPermissionGranted] = useState(false);
   const [debugMode, setDebugMode] = useState(true);
   const [logs, setLogs] = useState([]);
+  const [arSessionEnded, setArSessionEnded] = useState(false);
 
   // Refs для Three.js и WebXR
   const containerRef = useRef(null);
@@ -43,11 +51,60 @@ const ARLotteryView = () => {
     console.log(`[AR] ${message}`); // Также выводим в консоль для отладки
   };
 
+  // Применяем класс ar-active к body при активной AR сессии
+  useEffect(() => {
+    if (arActive) {
+      document.body.classList.add('ar-active');
+    } else {
+      document.body.classList.remove('ar-active');
+    }
+
+    return () => {
+      document.body.classList.remove('ar-active');
+    };
+  }, [arActive]);
+
+  // Полная очистка при размонтировании компонента
+  useEffect(() => {
+    return () => {
+      // Завершаем AR сессию если она активна
+      if (arSessionRef.current) {
+        arSessionRef.current.end().catch(console.error);
+      }
+      
+      // Очищаем Three.js ресурсы
+      if (rendererRef.current) {
+        rendererRef.current.dispose();
+      }
+      
+      // Удаляем класс с body
+      document.body.classList.remove('ar-active');
+      
+      // Удаляем обработчики событий
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
+  // Обработчик изменения размера окна
+  const handleResize = () => {
+    if (cameraRef.current && rendererRef.current) {
+      cameraRef.current.aspect = window.innerWidth / window.innerHeight;
+      cameraRef.current.updateProjectionMatrix();
+      rendererRef.current.setSize(window.innerWidth, window.innerHeight);
+    }
+  };
+
   // Проверка и запрос разрешения на использование камеры
   const checkCameraPermission = async () => {
     try {
       addLog("Запрашиваем разрешение на доступ к камере...");
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: {
+          width: { ideal: window.innerWidth },
+          height: { ideal: window.innerHeight },
+          facingMode: 'environment' // Использовать заднюю камеру
+        } 
+      });
       stream.getTracks().forEach(track => track.stop()); // Останавливаем стрим, нам нужно только разрешение
       setPermissionGranted(true);
       addLog("Разрешение на доступ к камере получено!");
@@ -87,6 +144,15 @@ const ARLotteryView = () => {
       setDeviceInfo(deviceInfo);
       addLog(`Устройство: ${deviceInfo}`);
       
+      // Проверка ограничений
+      if (!isMobile) {
+        addLog('AR обычно доступен только на мобильных устройствах');
+      }
+      
+      if (isIOS && !/Safari/.test(ua)) {
+        addLog('Внимание: на iOS AR работает только в Safari');
+      }
+      
       // Проверяем поддержку WebXR
       if ('xr' in navigator) {
         try {
@@ -95,8 +161,11 @@ const ARLotteryView = () => {
           addLog(`Поддержка AR: ${supported ? 'Да' : 'Нет'}`);
 
           // Если AR поддерживается, проверяем разрешение камеры
-          if (supported) {
+          if (supported && isMobile) {
             await checkCameraPermission();
+          } else if (!isMobile) {
+            setArSupported(false);
+            addLog('AR недоступен на десктопе');
           }
         } catch (err) {
           addLog(`Ошибка при проверке поддержки AR: ${err.message}`);
@@ -106,8 +175,6 @@ const ARLotteryView = () => {
         addLog('WebXR API не поддерживается в этом браузере');
         setArSupported(false);
       }
-      
-      return { isIOS, isAndroid, isMobile, browser, deviceType };
     };
     
     detectDevice();
@@ -182,25 +249,26 @@ const ARLotteryView = () => {
       powerPreference: "high-performance" // Для лучшей производительности на мобильных устройствах
     });
     
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Ограничиваем pixelRatio для производительности 
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.setClearColor(0x000000, 0); // Прозрачный фон
     rendererRef.current = renderer;
     
-    // Добавляем канвас на страницу
-    containerRef.current.appendChild(renderer.domElement);
+    // Добавляем канвас на страницу и применяем стили
+    const canvas = renderer.domElement;
+    canvas.style.display = 'block';
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    canvas.style.position = 'absolute';
+    canvas.style.top = '0';
+    canvas.style.left = '0';
+    canvas.style.zIndex = '1';
+    containerRef.current.appendChild(canvas);
+    
     addLog("Рендерер создан и добавлен на страницу");
     
     // Добавляем обработчик изменения размера окна
-    const handleResize = () => {
-      if (cameraRef.current && rendererRef.current) {
-        cameraRef.current.aspect = window.innerWidth / window.innerHeight;
-        cameraRef.current.updateProjectionMatrix();
-        rendererRef.current.setSize(window.innerWidth, window.innerHeight);
-      }
-    };
-      
     window.addEventListener("resize", handleResize);
     
     return () => {
@@ -242,17 +310,67 @@ const ARLotteryView = () => {
       sceneRef.current.add(directionalLight);
       
       // Загружаем модель сундука
+      // Важно: убедитесь, что модели находятся в папке public/models/
       const loader = new GLTFLoader();
-      const modelPath = ticket.is_win 
-        ? "/models/treasure_chest_win.glb" 
-        : "/models/treasure_chest_lose.glb";
+      let modelPath;
+      
+      // Проверяем пути к файлам моделей
+      if (ticket.is_win) {
+        modelPath = "/models/treasure_chest_win.glb";
+        // Альтернативные пути, на случай если первый не работает
+        const alternativePaths = [
+          "./models/treasure_chest_win.glb",
+          "../models/treasure_chest_win.glb",
+          "models/treasure_chest_win.glb"
+        ];
+        
+        // Проверка доступности файла модели
+        fetch(modelPath).catch(() => {
+          addLog(`Модель не найдена по пути ${modelPath}, пробуем альтернативные пути...`);
+          // Если основной путь не работает, попробуем альтернативные
+          modelPath = alternativePaths[0]; // установим первый альтернативный путь
+        });
+      } else {
+        modelPath = "/models/treasure_chest_lose.glb";
+        // Альтернативные пути
+        const alternativePaths = [
+          "./models/treasure_chest_lose.glb",
+          "../models/treasure_chest_lose.glb",
+          "models/treasure_chest_lose.glb"
+        ];
+        
+        // Проверка доступности файла модели
+        fetch(modelPath).catch(() => {
+          addLog(`Модель не найдена по пути ${modelPath}, пробуем альтернативные пути...`);
+          modelPath = alternativePaths[0];
+        });
+      }
       
       addLog(`Загрузка модели: ${modelPath}`);
+      
+      // Устанавливаем временную геометрию, которая будет отображаться до загрузки модели
+      const tempGeometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+      const tempMaterial = new THREE.MeshBasicMaterial({ 
+        color: ticket.is_win ? 0xffcc00 : 0x888888,
+        wireframe: true
+      });
+      const tempBox = new THREE.Mesh(tempGeometry, tempMaterial);
+      
+      if (!arSupported) {
+        tempBox.position.set(0, 0, -1);
+      }
+      
+      tempBox.visible = !arSupported;
+      sceneRef.current.add(tempBox);
+      objectRef.current = tempBox; // временно используем как объект
       
       loader.load(
         modelPath,
         (gltf) => {
           addLog("Модель загружена успешно");
+          
+          // Удаляем временную геометрию
+          sceneRef.current.remove(tempBox);
           
           // Настраиваем модель
           const model = gltf.scene;
@@ -299,24 +417,13 @@ const ARLotteryView = () => {
         (error) => {
           addLog(`Ошибка загрузки модели: ${error.message}`);
           
-          // Создаем упрощенную модель в случае ошибки
-          const boxGeometry = new THREE.BoxGeometry(0.3, 0.2, 0.3);
-          const boxMaterial = new THREE.MeshStandardMaterial({
-            color: ticket.is_win ? 0xffd700 : 0x8b4513,
-            roughness: 0.7,
-            metalness: ticket.is_win ? 0.6 : 0.3
-          });
+          // Используем временную геометрию как основную, если не удалось загрузить модель
+          tempBox.visible = true;
           
-          const box = new THREE.Mesh(boxGeometry, boxMaterial);
+          // Если не AR, добавляем OrbitControls
           if (!arSupported) {
-            box.position.set(0, -0.4, -1);
+            initOrbitControls();
           }
-          
-          // Скрываем модель, она будет показана после размещения в AR
-          box.visible = !arSupported;
-          
-          sceneRef.current.add(box);
-          objectRef.current = box;
         }
       );
 
@@ -436,6 +543,8 @@ const ARLotteryView = () => {
         const session = await navigator.xr.requestSession('immersive-ar', sessionInit);
         arSessionRef.current = session;
         setArActive(true);
+        setArSessionEnded(false);
+        
         addLog("AR сессия создана успешно");
         
         // Настраиваем XR reference space
@@ -447,6 +556,7 @@ const ARLotteryView = () => {
         session.addEventListener('end', () => {
           addLog('AR сессия завершена');
           setArActive(false);
+          setArSessionEnded(true);
           modelPlaced.current = false;
           hitTestSourceRef.current = null;
           hitTestSourceRequiredRef.current = true;
@@ -545,7 +655,6 @@ const ARLotteryView = () => {
             rendererRef.current.render(sceneRef.current, cameraRef.current);
           }
         });
-        
       } catch (err) {
         addLog(`Ошибка при создании AR сессии: ${err.message}`);
         setError(`Не удалось запустить AR сессию: ${err.message}. Проверьте, что ваш браузер имеет доступ к камере.`);
@@ -555,7 +664,6 @@ const ARLotteryView = () => {
           objectRef.current.visible = true;
         }
       }
-      
     } catch (err) {
       addLog(`Ошибка инициализации AR: ${err.message}`);
       setError(`Не удалось инициализировать AR: ${err.message}`);
@@ -582,10 +690,20 @@ const ARLotteryView = () => {
     setViewStarted(true);
   };
 
+  // Обработчик для выхода из AR режима
+  const handleExitAR = () => {
+    addLog("Выход из AR режима");
+    if (arSessionRef.current) {
+      arSessionRef.current.end().catch(err => {
+        addLog(`Ошибка при завершении AR сессии: ${err.message}`);
+      });
+    }
+  };
+
   // Показываем индикатор загрузки
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 ar-page">
         <ClipLoader size={40} color="#000" />
       </div>
     );
@@ -594,7 +712,7 @@ const ARLotteryView = () => {
   // Показываем ошибку
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 ar-page">
         <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
           <h2 className="text-2xl font-bold text-black mb-4 text-center">Ошибка</h2>
           <p className="text-red-600 text-center">{error}</p>
@@ -622,7 +740,7 @@ const ARLotteryView = () => {
   // Показываем сообщение, если билет не найден
   if (!ticket) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 ar-page">
         <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
           <h2 className="text-2xl font-bold text-black mb-4 text-center">Билет не найден</h2>
           <p className="text-gray-700 text-center">Билет AR лотереи не найден или был удален.</p>
@@ -639,9 +757,16 @@ const ARLotteryView = () => {
 
   // Основной интерфейс
   return (
-    <div className="h-screen relative">
+    <div className="h-screen w-screen relative ar-page">
       {/* Контейнер для AR/3D сцены */}
-      <div ref={containerRef} className="absolute inset-0 bg-gradient-to-b from-purple-800 to-purple-900" style={{ zIndex: 0 }}></div>
+      <div 
+        ref={containerRef} 
+        className="absolute inset-0 ar-container" 
+        style={{ 
+          background: arActive ? 'transparent' : 'linear-gradient(to bottom, #663399, #5B21B6)',
+          zIndex: 0 
+        }}
+      />
       
       {/* Стартовый экран перед запуском просмотра */}
       {!viewStarted ? (
@@ -717,55 +842,61 @@ const ARLotteryView = () => {
         </div>
       ) : (
         // Панель с информацией после запуска просмотра
-        <div
-          className="absolute bottom-24 left-0 right-0 p-6 bg-black bg-opacity-70 text-white z-30"
-          style={{ pointerEvents: "auto" }}
-        >
-          <div className="text-center">
-            <h2 className="text-xl font-bold mb-4">
-              {ticket.is_win
-                ? `Поздравляем! Вы выиграли ${ticket.win_amount} ₽`
-                : "К сожалению, сундук оказался пуст"}
-            </h2>
+        <AROverlay className="bottom-24 left-0 right-0 mx-auto max-w-md text-center">
+          <h2 className="text-xl font-bold mb-4">
+            {ticket.is_win
+              ? `Поздравляем! Вы выиграли ${ticket.win_amount} ₽`
+              : "К сожалению, сундук оказался пуст"}
+          </h2>
+          <div className="flex justify-center space-x-4">
+            {arActive && (
+              <button
+                onClick={handleExitAR}
+                className="px-6 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-base"
+              >
+                Выйти из AR
+              </button>
+            )}
             <button
               onClick={() => navigate("/dashboard")}
-              className="px-8 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 text-lg"
-              style={{ pointerEvents: "auto" }}
+              className="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 text-base"
             >
-              Вернуться на главную
+              На главную
             </button>
           </div>
-        </div>
+        </AROverlay>
       )}
       
       {/* AR-инструкции для пользователя */}
       {viewStarted && arSupported && arActive && !modelPlaced.current && (
-        <div className="absolute top-0 left-0 right-0 p-4 bg-black bg-opacity-50 text-white z-40 text-center">
+        <AROverlay className="top-0 left-0 right-0 mx-auto mt-10 max-w-md text-center">
           <p className="font-bold mb-1">Найдите плоскую поверхность</p>
           <p className="text-sm">Наведите камеру на пол или стол и нажмите, чтобы разместить сундук</p>
-        </div>
+        </AROverlay>
       )}
       
       {/* Ошибка при работе с AR */}
-      {viewStarted && arSupported && !arActive && (
-        <div className="absolute top-0 left-0 right-0 p-4 bg-red-600 bg-opacity-70 text-white z-40 text-center">
-          <p className="font-bold mb-1">Ошибка запуска AR</p>
-          <p className="text-sm mb-2">Не удалось запустить режим дополненной реальности</p>
+      {viewStarted && arSupported && arSessionEnded && (
+        <AROverlay className="top-0 left-0 right-0 mx-auto mt-24 max-w-md text-center">
+          <p className="font-bold mb-1">Сессия AR завершена</p>
+          <button
+            onClick={handleStartView}
+            className="mt-2 px-4 py-2 bg-green-500 text-white rounded-lg font-bold"
+          >
+            Перезапустить AR
+          </button>
           <button
             onClick={handleFallbackMode}
-            className="px-4 py-2 bg-white text-red-600 rounded-lg text-sm font-bold"
+            className="mt-2 px-4 py-2 bg-white text-gray-800 rounded-lg ml-2 font-bold"
           >
             Переключиться на 3D режим
           </button>
-        </div>
+        </AROverlay>
       )}
       
       {/* Логи для отладки */}
       {debugMode && (
-        <div
-          className="absolute top-4 left-4 right-4 bg-black bg-opacity-50 text-white p-2 max-h-40 overflow-y-auto z-40"
-          style={{ display: "block", fontSize: "10px" }}
-        >
+        <AROverlay className="top-4 left-4 right-4 max-h-40 overflow-y-auto">
           <div className="flex justify-between items-center mb-1">
             <span className="text-xs font-bold">Отладка</span>
             <div>
@@ -783,7 +914,7 @@ const ARLotteryView = () => {
               {log}
             </p>
           ))}
-        </div>
+        </AROverlay>
       )}
     </div>
   );
