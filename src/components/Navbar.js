@@ -1,15 +1,16 @@
-// Updated Navbar.js with VIP Shop button and Inventory access
+// Updated Navbar.js with VIP Shop renamed to Магазин and Games dropdown
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../supabaseClient";
-import VIPShop from "./VIPShop"; // Import the VIP Shop component
-import UserInventory from "./UserInventory"; // Import the User Inventory component
+import VIPShop from "./VIPShop";
+import UserInventory from "./UserInventory";
 
 const Navbar = () => {
   const [user, setUser] = useState(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isVIPShopOpen, setIsVIPShopOpen] = useState(false); // State for VIP Shop modal
-  const [isInventoryOpen, setIsInventoryOpen] = useState(false); // State for Inventory modal
+  const [isVIPShopOpen, setIsVIPShopOpen] = useState(false);
+  const [isInventoryOpen, setIsInventoryOpen] = useState(false);
+  const [isGamesMenuOpen, setIsGamesMenuOpen] = useState(false); // State for Games dropdown
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -51,7 +52,6 @@ const Navbar = () => {
     navigate("/login");
   };
 
-  // Function to determine if a route is active
   const isActive = (path) => {
     return location.pathname === path || location.pathname.startsWith(path);
   };
@@ -62,17 +62,16 @@ const Navbar = () => {
         <div className="flex items-center justify-between h-16">
           {/* Left section: Logo and navigation */}
           <div className="flex items-center space-x-4">
-            {/* Logo */}
             <Link to="/" className="flex items-center space-x-3 group">
               <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center shadow-lg hover:shadow-purple-500/30 transition-all duration-300">
                 <span className="text-white text-sm font-bold">ЛОТО</span>
               </div>
               <span className="text-2xl font-bold text-white tracking-tight">FutureWin</span>
             </Link>
-            
-            {/* Navigation for desktop (moved from center to left) */}
+
+            {/* Navigation for desktop */}
             <div className="hidden md:block ml-6">
-              <div className="border border-gray-700 rounded-lg p-1">
+              <div className="border border-gray-700 rounded-lg p-1 flex items-center space-x-1">
                 <Link
                   to="/dashboard"
                   className={`px-3 py-1.5 rounded text-sm font-medium ${
@@ -106,13 +105,51 @@ const Navbar = () => {
                     <span className="absolute top-0 right-0 transform translate-x-1 -translate-y-1 w-2 h-2 bg-yellow-400 rounded-full"></span>
                   )}
                 </Link>
+                {/* Games Dropdown for desktop */}
+                <div className="relative">
+                  <button
+                    onClick={() => setIsGamesMenuOpen(!isGamesMenuOpen)}
+                    className={`px-3 py-1.5 rounded text-sm font-medium ${
+                      isActive('/treasury') || isActive('/farm')
+                        ? 'bg-gray-800 text-white'
+                        : 'text-gray-300 hover:text-white hover:bg-gray-800 hover:bg-opacity-50'
+                    } transition-colors duration-200 flex items-center`}
+                  >
+                    Игры
+                    <svg
+                      className={`ml-1 h-4 w-4 transform ${isGamesMenuOpen ? 'rotate-180' : ''}`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {isGamesMenuOpen && (
+                    <div className="absolute left-0 mt-2 w-40 bg-gray-800 border border-gray-700 rounded-md shadow-lg z-10">
+                      <Link
+                        to="/treasury"
+                        className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white"
+                        onClick={() => setIsGamesMenuOpen(false)}
+                      >
+                        Сокровищница
+                      </Link>
+                      <Link
+                        to="/farm"
+                        className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white"
+                        onClick={() => setIsGamesMenuOpen(false)}
+                      >
+                        Ферма
+                      </Link>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
 
           {/* Right section: User info and VIP status */}
           <div className="flex items-center space-x-3">
-            {/* VIP Shop Button - Only show for logged in users */}
             {user && (
               <div className="hidden md:flex items-center space-x-3">
                 <button
@@ -124,28 +161,22 @@ const Navbar = () => {
                   </svg>
                   <span>Инвентарь</span>
                 </button>
-                
                 <button
                   onClick={() => setIsVIPShopOpen(true)}
                   className="flex items-center space-x-1 bg-gradient-to-r from-yellow-500 to-amber-600 text-black px-3 py-1.5 rounded-md font-medium hover:from-yellow-600 hover:to-amber-700 transition-all duration-300 shadow-md"
                 >
                   <span className="text-yellow-900">✦</span>
-                  <span>Магазин наград</span>
-                  {/* Pulsing dot for attention */}
+                  <span>Магазин</span>
                   <span className="absolute top-0 right-0 transform translate-x-1 -translate-y-1 w-2 h-2 bg-red-500 rounded-full animate-ping"></span>
                 </button>
               </div>
             )}
-            
-            {/* User balance (only for desktop) */}
             {user && (
               <div className="hidden md:flex items-center">
                 <div className="bg-gray-800 px-4 py-2 rounded-lg border border-gray-700">
                   <p className="text-gray-400 text-xs">Баланс</p>
                   <p className="text-white font-medium">{user.balance?.toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 2}) || "0.00"} ₽</p>
                 </div>
-                
-                {/* Crystals (only for desktop) */}
                 <div className="ml-3 bg-gray-800 px-4 py-2 rounded-lg border border-gray-700">
                   <p className="text-gray-400 text-xs">Кристаллы</p>
                   <div className="flex items-center">
@@ -153,8 +184,6 @@ const Navbar = () => {
                     <span className="ml-1 text-yellow-400">✦</span>
                   </div>
                 </div>
-                
-                {/* VIP level moved outside balance block */}
                 {user.vip_level > 0 && (
                   <div className="ml-3 bg-yellow-400 px-3 py-2 rounded-lg">
                     <p className="text-xs font-bold text-gray-900">VIP {user.vip_level}</p>
@@ -162,8 +191,6 @@ const Navbar = () => {
                 )}
               </div>
             )}
-
-            {/* User actions for desktop */}
             <div className="hidden md:flex items-center space-x-2">
               {user ? (
                 <div className="flex items-center space-x-2">
@@ -242,7 +269,6 @@ const Navbar = () => {
       <div className={`${isMenuOpen ? 'block' : 'hidden'} md:hidden border-t border-gray-800`}>
         {user && (
           <div className="flex flex-col space-y-2 px-4 py-3 bg-gray-800 border-b border-gray-700">
-            {/* Mobile user info */}
             <div className="flex justify-between items-center">
               <div>
                 <p className="text-xs text-gray-400">Баланс</p>
@@ -255,7 +281,6 @@ const Navbar = () => {
                   <span className="ml-1 text-yellow-400">✦</span>
                 </div>
               </div>
-              {/* VIP status outside the balance block in mobile view */}
               {user.vip_level > 0 && (
                 <div className="bg-yellow-400 rounded-full px-2 py-0.5">
                   <p className="text-xs font-bold text-gray-900">VIP {user.vip_level}</p>
@@ -264,7 +289,6 @@ const Navbar = () => {
             </div>
           </div>
         )}
-        
         <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
           <Link
             to="/dashboard"
@@ -304,7 +328,53 @@ const Navbar = () => {
               </span>
             </div>
           </Link>
-          {/* VIP Shop in mobile menu */}
+          {/* Games Dropdown for mobile */}
+          <div className="relative">
+            <button
+              onClick={() => setIsGamesMenuOpen(!isGamesMenuOpen)}
+              className={`block w-full text-left px-3 py-2 rounded-md text-base font-medium ${
+                isActive('/treasury') || isActive('/farm')
+                  ? 'bg-gray-800 text-white'
+                  : 'text-gray-300 hover:text-white hover:bg-gray-800'
+              }`}
+            >
+              <div className="flex items-center">
+                Игры
+                <svg
+                  className={`ml-2 h-5 w-5 transform ${isGamesMenuOpen ? 'rotate-180' : ''}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </button>
+            {isGamesMenuOpen && (
+              <div className="pl-4 space-y-1">
+                <Link
+                  to="/treasury"
+                  className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-gray-700"
+                  onClick={() => {
+                    setIsGamesMenuOpen(false);
+                    setIsMenuOpen(false);
+                  }}
+                >
+                  Сокровищница
+                </Link>
+                <Link
+                  to="/farm"
+                  className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-gray-700"
+                  onClick={() => {
+                    setIsGamesMenuOpen(false);
+                    setIsMenuOpen(false);
+                  }}
+                >
+                  Ферма
+                </Link>
+              </div>
+            )}
+          </div>
           {user && (
             <>
               <button
@@ -319,7 +389,6 @@ const Navbar = () => {
                 </svg>
                 Мой инвентарь
               </button>
-              
               <button
                 onClick={() => {
                   setIsVIPShopOpen(true);
@@ -328,7 +397,7 @@ const Navbar = () => {
                 className="w-full text-left flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-gray-800 bg-gradient-to-r from-yellow-500/20 to-amber-600/20"
               >
                 <span className="text-yellow-400 mr-2">✦</span>
-                Магазин наград
+                Магазин
                 <span className="ml-2 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-black bg-red-400 rounded-full">
                   VIP
                 </span>
@@ -379,10 +448,7 @@ const Navbar = () => {
         </div>
       </div>
 
-      {/* VIP Shop Modal */}
       {isVIPShopOpen && <VIPShop isOpen={isVIPShopOpen} onClose={() => setIsVIPShopOpen(false)} />}
-      
-      {/* Inventory Modal */}
       {isInventoryOpen && <UserInventory isOpen={isInventoryOpen} onClose={() => setIsInventoryOpen(false)} />}
     </nav>
   );
