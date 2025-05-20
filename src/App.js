@@ -1,4 +1,3 @@
-// App.js
 import { BrowserRouter as Router, Route, Routes, Navigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import Navbar from "./components/Navbar";
@@ -11,10 +10,10 @@ import AdminPanel from "./components/AdminPanel";
 import LotteryPage from "./components/LotteryPage";
 import InstantLotteries from "./components/InstantLotteries";
 import InstantLotteryGame from "./components/InstantLotteryGame";
-import ARLottery from "./components/ARLottery"; // Import ARLottery
+// Импортируем компоненты AR лотереи
+import ARLottery from "./components/ARLottery";  
 import ARLotteryView from "./components/ARLotteryView";
 import { supabase } from "./supabaseClient";
-import './App.css';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -63,14 +62,14 @@ function App() {
   }, []);
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-900">Загрузка...</div>;
+    return <div className="min-h-screen flex items-center justify-center bg-gray-100">Загрузка...</div>;
   }
 
   return (
     <Router>
-      <div className="flex flex-col min-h-screen w-full overflow-x-hidden">
+      <div className="flex flex-col min-h-screen">
         <Navbar />
-        <main className="flex-grow w-full overflow-x-hidden">
+        <main className="flex-grow">
           <Routes>
             <Route path="/register" element={<Register />} />
             <Route path="/login" element={<Login />} />
@@ -89,6 +88,7 @@ function App() {
               path="/lottery/:id"
               element={<LotteryPage />}
             />
+            {/* Маршруты для моментальных лотерей */}
             <Route
               path="/instant-lotteries"
               element={<InstantLotteries />}
@@ -97,13 +97,14 @@ function App() {
               path="/instant-lottery/:type"
               element={isAuthenticated ? <InstantLotteryGame /> : <Navigate to="/login" />}
             />
+            {/* Новые маршруты для AR лотереи */}
             <Route
               path="/ar-lottery"
               element={isAuthenticated ? <ARLottery /> : <Navigate to="/login" />}
             />
             <Route
-              path="/ar-lottery/:id"
-              element={isAuthenticated ? <ARLotteryView /> : <Navigate to="/login" />}
+              path="/ar-lottery/:ticket_id"
+              element={isAuthenticated ? <ARLottery /> : <Navigate to="/login" />}
             />
             <Route
               path="/ar-lottery/view/:id"
