@@ -199,15 +199,20 @@ const ARLotteryView = () => {
           playSound(isWin ? "chestOpen" : "chestClose");
           setAnimationPlayed(true);
         } else {
-          addLog("Не удалось найти подходящую анимацию");
-          console.error("Доступные анимации:", Object.keys(animations));
+          addLog("Подходящая анимация не найдена, воспроизведение звука без анимации");
+          playSound(isWin ? "chestOpen" : "chestClose");
+          setAnimationPlayed(true);
         }
       } catch (err) {
         addLog(`Ошибка воспроизведения анимации: ${err.message}`);
         console.error("Ошибка анимации:", err);
+        playSound(isWin ? "chestOpen" : "chestClose"); // Fallback на звук
+        setAnimationPlayed(true);
       }
     } else {
       addLog("Миксер или объект не инициализированы");
+      playSound(isWin ? "chestOpen" : "chestClose"); // Fallback на звук
+      setAnimationPlayed(true);
     }
   };
 
@@ -286,7 +291,7 @@ const ARLotteryView = () => {
           model.scale.set(0.5, 0.5, 0.5);
           model.position.set(0, 0, -0.5);
           model.rotation.y = Math.PI / 4;
-          model.visible = true; // Убедимся, что модель видима
+          model.visible = true;
           scene.add(model);
           objectRef.current = model;
           addLog("Модель сундука добавлена в сцену");
@@ -305,6 +310,7 @@ const ARLotteryView = () => {
             playSpecificAnimation(null, ticket.is_win);
           } else {
             addLog("Анимации не найдены, используется статичная модель");
+            playSound(ticket.is_win ? "chestOpen" : "chestClose"); // Fallback на звук
           }
         },
         (progress) => {
@@ -336,6 +342,7 @@ const ARLotteryView = () => {
           scene.add(chest);
           objectRef.current = chest;
           addLog("Создан резервный сундук");
+          playSound(ticket.is_win ? "chestOpen" : "chestClose"); // Fallback на звук
         }
       );
 
@@ -415,7 +422,7 @@ const ARLotteryView = () => {
         chestModelPath,
         (gltf) => {
           const model = gltf.scene;
-          model.scale.set(0.5, 0.5, 0.5); // Увеличен масштаб
+          model.scale.set(0.5, 0.5, 0.5);
           model.visible = false;
           scene.add(model);
           objectRef.current = model;
@@ -467,18 +474,18 @@ const ARLotteryView = () => {
           const viewerReferenceSpace = await session.requestReferenceSpace("viewer");
           hitTestSource.current = await session.requestHitTestSource({ space: viewerReferenceSpace });
 
-          // Fallback: если hit-test не сработает через 5 секунд
+          // Fallback: если hit-test не сработает через 2 секунды
           fallbackTimer = setTimeout(() => {
             if (objectRef.current && !objectRef.current.visible) {
               addLog("Hit-test не сработал, размещение сундука по умолчанию");
               const position = new THREE.Vector3(0, 0, -1.5).applyMatrix4(cameraRef.current.matrixWorld);
-              position.y = 0; // На полу
+              position.y = 0;
               objectRef.current.position.copy(position);
               objectRef.current.quaternion.copy(cameraRef.current.quaternion);
               objectRef.current.visible = true;
               playSpecificAnimation(null, ticket.is_win);
             }
-          }, 5000);
+          }, 2000);
 
           // Автоматическое размещение сундука
           const placeChestOnFloor = (frame) => {
@@ -666,8 +673,8 @@ const ARLotteryView = () => {
         </div>
       ) : (
         <div
-          className="absolute bottom-16 left-0 right-0 p-4 bg-black bg-opacity-70 text-white z-30"
-          style={{ minHeight: "120px", pointerEvents: "auto" }}
+          className="absolute bottom-24 left-0 right-0 p-6 bg-black bg-opacity-70 text-white z-30"
+          style={{ minHeight: "140px", pointerEvents: "auto" }}
         >
           <div className="text-center">
             <h2 className="text-xl font-bold mb-4">
@@ -675,7 +682,7 @@ const ARLotteryView = () => {
                 ? `Поздравляем! Вы выиграли ${ticket.win_amount} ₽`
                 : "К сожалению, сундук оказался пуст"}
             </h2>
-            <div className="flex justify-center space-x-6">
+            <div className="flex justify-center space-x-8">
               <button
                 onClick={() => {
                   activateAudioContext();
@@ -684,16 +691,18 @@ const ARLotteryView = () => {
                     playSpecificAnimation(null, ticket.is_win);
                   } else {
                     addLog("Миксер анимаций не инициализирован");
+                    playSound(ticket.is_win ? "chestOpen" : "chestClose"); // Fallback на звук
+                    setAnimationPlayed(true);
                   }
                 }}
-                className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-lg"
+                className="px-8 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-lg"
                 style={{ pointerEvents: "auto" }}
               >
                 Повторить анимацию
               </button>
               <button
                 onClick={() => navigate("/dashboard")}
-                className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 text-lg"
+                className="px-8 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 text-lg"
                 style={{ pointerEvents: "auto" }}
               >
                 Вернуться на главную
