@@ -73,19 +73,17 @@ const Navbar = () => {
                 <p className="text-gray-400 text-xs">Баланс</p>
                 <p className="text-white font-medium">{user.balance?.toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 2}) || "0.00"} ₽</p>
               </div>
-              <div className="flex items-center">
-                <div>
-                  <p className="text-gray-400 text-xs">Кристаллы</p>
-                  <div className="flex items-center">
-                    <p className="text-white font-medium">{user.crystals || 0}</p>
-                    <span className="ml-1 text-yellow-400">✦</span>
-                  </div>
+              <div className="relative">
+                <p className="text-gray-400 text-xs">Кристаллы</p>
+                <div className="flex items-center">
+                  <p className="text-white font-medium">{user.crystals || 0}</p>
+                  <span className="ml-1 text-yellow-400">✦</span>
                 </div>
                 {user.vip_level > 0 && (
-                  <div className="ml-3">
-                    <div className="px-2 py-1 bg-yellow-400 rounded-md text-xs font-bold text-gray-900">
+                  <div className="absolute -top-2 -right-2">
+                    <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold text-gray-900 bg-yellow-400 rounded-full">
                       VIP {user.vip_level}
-                    </div>
+                    </span>
                   </div>
                 )}
               </div>
@@ -207,27 +205,23 @@ const Navbar = () => {
       {/* Мобильное меню */}
       <div className={`${isMenuOpen ? 'block' : 'hidden'} md:hidden border-t border-gray-800`}>
         {user && (
-          <div className="flex justify-between items-center px-4 py-3 bg-gray-800 border-b border-gray-700">
+          <div className="flex justify-between items-center px-10 py- bg-gray-800 border-b border-gray-700">
             <div>
               <p className="text-xs text-gray-400">Баланс</p>
               <p className="text-white font-medium">{user.balance?.toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 2}) || "0.00"} ₽</p>
             </div>
-            <div className="flex items-center">
-              <div>
-                <p className="text-xs text-gray-400">Кристаллы</p>
-                <div className="flex items-center">
-                  <p className="text-white font-medium">{user.crystals || 0}</p>
-                  <span className="ml-1 text-yellow-400">✦</span>
-                </div>
+            <div>
+              <p className="text-xs text-gray-400">Кристаллы</p>
+              <div className="flex items-center">
+                <p className="text-white font-medium">{user.crystals || 0}</p>
+                <span className="ml-1 text-yellow-400">✦</span>
               </div>
-              {user.vip_level > 0 && (
-                <div className="ml-3">
-                  <div className="px-2 py-1 bg-yellow-400 rounded-md text-xs font-bold text-gray-900">
-                    VIP {user.vip_level}
-                  </div>
-                </div>
-              )}
             </div>
+            {user.vip_level > 0 && (
+              <div className="bg-yellow-400 rounded-full px-2 py-0.5">
+                <p className="text-xs font-bold text-gray-900">VIP {user.vip_level}</p>
+              </div>
+            )}
           </div>
         )}
         

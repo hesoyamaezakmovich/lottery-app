@@ -9,7 +9,7 @@ const ARLotteryCard = ({ onPlay }) => {
       transition={{ type: "spring", stiffness: 300 }}
     >
       <div className="relative p-6">
-        {/* Декоративные элементы */}
+        {/* Decorative elements */}
         <div className="absolute top-0 right-0 w-24 h-24 bg-blue-400 rounded-full filter blur-xl opacity-20 -mt-8 -mr-8"></div>
         <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-500 rounded-full filter blur-xl opacity-20 -mb-16 -ml-16"></div>
         
@@ -33,9 +33,9 @@ const ARLotteryCard = ({ onPlay }) => {
             Увидьте результат в дополненной реальности!
           </p>
           
-          {/* Анимированный блок с информацией */}
+          {/* Animated information block with fixed contrast */}
           <motion.div 
-            className="bg-gradient-to-r from-white to-blue-100 bg-opacity-10 p-4 rounded-lg mb-5"
+            className="bg-blue-900 bg-opacity-40 p-4 rounded-lg mb-5 border border-blue-400 border-opacity-30"
             initial={{ opacity: 0.9 }}
             animate={{ 
               opacity: [0.9, 1, 0.9],
@@ -47,11 +47,11 @@ const ARLotteryCard = ({ onPlay }) => {
               repeatType: "reverse"
             }}
           >
-            <div className="flex justify-between items-center mb-2 pb-2 border-b border-blue-200 border-opacity-30">
+            <div className="flex justify-between items-center mb-2 pb-2 border-b border-blue-300 border-opacity-30">
               <span className="text-white font-medium">Стоимость:</span>
               <span className="text-white font-bold">75 ₽</span>
             </div>
-            <div className="flex justify-between items-center mb-2 pb-2 border-b border-blue-200 border-opacity-30">
+            <div className="flex justify-between items-center mb-2 pb-2 border-b border-blue-300 border-opacity-30">
               <span className="text-white font-medium">Шанс выигрыша:</span>
               <span className="text-white font-bold">25%</span>
             </div>
