@@ -1,4 +1,4 @@
-// Modified App.js to fix white margin issues
+// App.js
 import { BrowserRouter as Router, Route, Routes, Navigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import Navbar from "./components/Navbar";
@@ -11,11 +11,10 @@ import AdminPanel from "./components/AdminPanel";
 import LotteryPage from "./components/LotteryPage";
 import InstantLotteries from "./components/InstantLotteries";
 import InstantLotteryGame from "./components/InstantLotteryGame";
-// Импортируем компоненты AR лотереи
-import ARLottery from "./components/ARLottery";  
+import ARLottery from "./components/ARLottery"; // Import ARLottery
 import ARLotteryView from "./components/ARLotteryView";
 import { supabase } from "./supabaseClient";
-import './App.css'; // Make sure App.css is imported
+import './App.css';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -90,7 +89,6 @@ function App() {
               path="/lottery/:id"
               element={<LotteryPage />}
             />
-            {/* Маршруты для моментальных лотерей */}
             <Route
               path="/instant-lotteries"
               element={<InstantLotteries />}
@@ -99,14 +97,13 @@ function App() {
               path="/instant-lottery/:type"
               element={isAuthenticated ? <InstantLotteryGame /> : <Navigate to="/login" />}
             />
-            {/* Маршруты для AR лотереи */}
             <Route
               path="/ar-lottery"
               element={isAuthenticated ? <ARLottery /> : <Navigate to="/login" />}
             />
             <Route
-              path="/ar-lottery/:ticket_id"
-              element={isAuthenticated ? <ARLottery /> : <Navigate to="/login" />}
+              path="/ar-lottery/:id"
+              element={isAuthenticated ? <ARLotteryView /> : <Navigate to="/login" />}
             />
             <Route
               path="/ar-lottery/view/:id"
