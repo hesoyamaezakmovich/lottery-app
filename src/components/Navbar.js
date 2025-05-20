@@ -1,11 +1,15 @@
-// Updated Navbar.js with reorganized layout
+// Updated Navbar.js with VIP Shop button and Inventory access
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../supabaseClient";
+import VIPShop from "./VIPShop"; // Import the VIP Shop component
+import UserInventory from "./UserInventory"; // Import the User Inventory component
 
 const Navbar = () => {
   const [user, setUser] = useState(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isVIPShopOpen, setIsVIPShopOpen] = useState(false); // State for VIP Shop modal
+  const [isInventoryOpen, setIsInventoryOpen] = useState(false); // State for Inventory modal
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -47,7 +51,7 @@ const Navbar = () => {
     navigate("/login");
   };
 
-  // Функция для определения активности ссылки
+  // Function to determine if a route is active
   const isActive = (path) => {
     return location.pathname === path || location.pathname.startsWith(path);
   };
@@ -108,6 +112,31 @@ const Navbar = () => {
 
           {/* Right section: User info and VIP status */}
           <div className="flex items-center space-x-3">
+            {/* VIP Shop Button - Only show for logged in users */}
+            {user && (
+              <div className="hidden md:flex items-center space-x-3">
+                <button
+                  onClick={() => setIsInventoryOpen(true)}
+                  className="flex items-center space-x-1 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-3 py-1.5 rounded-md font-medium hover:from-indigo-600 hover:to-purple-700 transition-all duration-300 shadow-md"
+                >
+                  <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                  </svg>
+                  <span>Инвентарь</span>
+                </button>
+                
+                <button
+                  onClick={() => setIsVIPShopOpen(true)}
+                  className="flex items-center space-x-1 bg-gradient-to-r from-yellow-500 to-amber-600 text-black px-3 py-1.5 rounded-md font-medium hover:from-yellow-600 hover:to-amber-700 transition-all duration-300 shadow-md"
+                >
+                  <span className="text-yellow-900">✦</span>
+                  <span>Магазин наград</span>
+                  {/* Pulsing dot for attention */}
+                  <span className="absolute top-0 right-0 transform translate-x-1 -translate-y-1 w-2 h-2 bg-red-500 rounded-full animate-ping"></span>
+                </button>
+              </div>
+            )}
+            
             {/* User balance (only for desktop) */}
             {user && (
               <div className="hidden md:flex items-center">
@@ -275,6 +304,37 @@ const Navbar = () => {
               </span>
             </div>
           </Link>
+          {/* VIP Shop in mobile menu */}
+          {user && (
+            <>
+              <button
+                onClick={() => {
+                  setIsInventoryOpen(true);
+                  setIsMenuOpen(false);
+                }}
+                className="w-full text-left flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-gray-800 bg-gradient-to-r from-indigo-500/20 to-purple-600/20"
+              >
+                <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                </svg>
+                Мой инвентарь
+              </button>
+              
+              <button
+                onClick={() => {
+                  setIsVIPShopOpen(true);
+                  setIsMenuOpen(false);
+                }}
+                className="w-full text-left flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-gray-800 bg-gradient-to-r from-yellow-500/20 to-amber-600/20"
+              >
+                <span className="text-yellow-400 mr-2">✦</span>
+                Магазин наград
+                <span className="ml-2 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-black bg-red-400 rounded-full">
+                  VIP
+                </span>
+              </button>
+            </>
+          )}
           {user ? (
             <>
               <Link
@@ -318,6 +378,12 @@ const Navbar = () => {
           )}
         </div>
       </div>
+
+      {/* VIP Shop Modal */}
+      {isVIPShopOpen && <VIPShop isOpen={isVIPShopOpen} onClose={() => setIsVIPShopOpen(false)} />}
+      
+      {/* Inventory Modal */}
+      {isInventoryOpen && <UserInventory isOpen={isInventoryOpen} onClose={() => setIsInventoryOpen(false)} />}
     </nav>
   );
 };
