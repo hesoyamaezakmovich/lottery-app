@@ -2,7 +2,7 @@ import React from "react";
 import { motion } from "framer-motion";
 
 const ARLotteryCard = ({ onPlay }) => {
-  // Компонент карточки AR лотереи для Dashboard
+  // Улучшенный компонент карточки AR лотереи для Dashboard
   return (
     <motion.div 
       className="bg-gradient-to-b from-blue-500 to-indigo-600 rounded-lg shadow-lg overflow-hidden transition-transform duration-300 hover:-translate-y-2"
@@ -20,7 +20,21 @@ const ARLotteryCard = ({ onPlay }) => {
         <p className="text-white text-center mb-4">
           Узнайте результат в дополненной реальности!
         </p>
-        <div className="bg-white bg-opacity-20 p-3 rounded-lg mb-4">
+        
+        {/* Анимированный блок с информацией */}
+        <motion.div 
+          className="bg-white bg-opacity-20 p-3 rounded-lg mb-4"
+          initial={{ opacity: 0.9 }}
+          animate={{ 
+            opacity: [0.9, 1, 0.9],
+            scale: [1, 1.02, 1]
+          }}
+          transition={{ 
+            duration: 2,
+            repeat: Infinity,
+            repeatType: "reverse"
+          }}
+        >
           <p className="text-white text-center font-semibold">
             Стоимость: 75 ₽
           </p>
@@ -30,16 +44,24 @@ const ARLotteryCard = ({ onPlay }) => {
           <p className="text-white text-center text-sm mt-1">
             Выигрыш до 1000 ₽
           </p>
+        </motion.div>
+        
+        <div className="text-white text-sm text-center mb-4 flex items-center justify-center">
+          <span className="mr-2">📱</span>
+          <p>Сканируйте QR-код и увидите свой выигрыш в AR!</p>
         </div>
-        <p className="text-white text-sm text-center mb-4">
-          Сканируйте QR-код и увидите свой выигрыш в AR!
-        </p>
-        <button
+        
+        <motion.button
           onClick={onPlay}
           className="w-full py-3 px-4 bg-white text-indigo-600 font-bold rounded-lg hover:bg-blue-100 focus:outline-none transition-colors duration-200"
+          whileHover={{ 
+            backgroundColor: "#e6f0ff",
+            boxShadow: "0 4px 6px rgba(59, 130, 246, 0.2)"
+          }}
+          whileTap={{ scale: 0.98 }}
         >
           Играть
-        </button>
+        </motion.button>
       </div>
     </motion.div>
   );

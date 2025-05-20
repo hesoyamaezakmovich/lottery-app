@@ -1,11 +1,11 @@
-// Обновленный компонент ARLottery.js для лучшей поддержки AR
+// Полностью исправленный компонент ARLottery.js для лучшей поддержки AR
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { ClipLoader } from "react-spinners";
 import { useNavigate, useParams } from "react-router-dom";
-import { QRCodeCanvas } from "qrcode.react"; // Используем QRCodeCanvas
+import { QRCodeCanvas } from "qrcode.react";
 
-// Компонент AR Лотереи
+// Улучшенный компонент AR Лотереи
 const ARLottery = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -15,29 +15,57 @@ const ARLottery = () => {
   const [qrValue, setQrValue] = useState("");
   const [arSupported, setArSupported] = useState(null);
   const [isIOS, setIsIOS] = useState(false);
+  const [deviceInfo, setDeviceInfo] = useState("");
   const navigate = useNavigate();
   const { ticket_id } = useParams();
 
-  // Проверяем поддержку WebXR и устройство
+  // Проверяем поддержку WebXR и устройство - улучшенная версия
   useEffect(() => {
-    // Определение iOS устройства
-    const iosRegex = /iPad|iPhone|iPod/i;
-    const isIOSDevice = iosRegex.test(navigator.userAgent) && !window.MSStream;
-    setIsIOS(isIOSDevice);
+    // Определение типа устройства и браузера
+    const detectDevice = () => {
+      const ua = navigator.userAgent;
+      const browser = ua.match(/(Chrome|Firefox|Safari|Edge|MSIE)\/[\d.]+/i)?.[0] || "Неизвестный браузер";
+      
+      // Определение iOS устройства
+      const iosRegex = /iPad|iPhone|iPod/i;
+      const isIOSDevice = iosRegex.test(ua) && !window.MSStream;
+      setIsIOS(isIOSDevice);
+      
+      const deviceType = isIOSDevice
+        ? `iOS (${ua.match(/OS (\d+)_/i)?.[1] || "?"}.x)`
+        : /Android/i.test(ua)
+          ? `Android ${ua.match(/Android (\d+(?:\.\d+)?)/i)?.[1] || "?"}`
+          : "Десктоп";
+          
+      setDeviceInfo(`${deviceType}, ${browser}`);
+      return { isIOSDevice, browser, deviceType };
+    };
 
-    const checkARSupport = () => {
-      if ("xr" in navigator) {
-        navigator.xr
-          .isSessionSupported("immersive-ar")
-          .then((supported) => {
-            setArSupported(supported);
-          })
-          .catch((err) => {
-            console.error("Ошибка при проверке поддержки AR:", err);
-            setArSupported(false);
-          });
-      } else {
+    const { isIOSDevice, browser } = detectDevice();
+
+    const checkARSupport = async () => {
+      try {
+        // Проверка поддержки WebXR API
+        if (typeof navigator.xr === 'undefined') {
+          console.log("WebXR API недоступен");
+          setArSupported(false);
+          return;
+        }
+        
+        // Проверка поддержки AR сессий
+        const supported = await navigator.xr.isSessionSupported("immersive-ar");
+        console.log(`WebXR AR поддерживается: ${supported}`);
+        setArSupported(supported);
+        
+      } catch (err) {
+        console.error("Ошибка при проверке поддержки AR:", err);
         setArSupported(false);
+        
+        // Если это Safari на iOS, считаем что AR поддерживается через Quick Look
+        if (isIOSDevice && browser.includes("Safari")) {
+          console.log("iOS Safari: предполагаем поддержку AR Quick Look");
+          setArSupported(true);
+        }
       }
     };
 
@@ -51,12 +79,14 @@ const ARLottery = () => {
         const {
           data: { session },
         } = await supabase.auth.getSession();
+        
         if (session) {
           const { data, error } = await supabase
             .from("users")
             .select("*")
             .eq("id", session.user.id)
             .single();
+            
           if (!error) setUser(data);
         }
       } catch (err) {
@@ -69,7 +99,7 @@ const ARLottery = () => {
     fetchUser();
   }, []);
 
-  // Получаем или создаем результат AR лотереи
+  // Получаем или создаем билет AR лотереи
   useEffect(() => {
     const getOrCreateARResult = async () => {
       setLoading(true);
@@ -77,19 +107,27 @@ const ARLottery = () => {
         if (!user) return;
 
         if (ticket_id) {
-          // Получаем существующий билет по ID
+          // Если есть ID билета, получаем его данные
+          console.log(`Получение существующего билета AR лотереи: ${ticket_id}`);
           const { data: ticketData, error: ticketError } = await supabase
             .from("ar_lottery_tickets")
             .select("*")
             .eq("id", ticket_id)
             .single();
 
-          if (ticketError) throw ticketError;
+          if (ticketError) {
+            console.error("Ошибка при получении билета:", ticketError);
+            throw ticketError;
+          }
 
           setResult(ticketData);
           // Генерируем QR-код с URL для просмотра AR-результата
           setQrValue(`${window.location.origin}/ar-lottery/view/${ticketData.id}`);
+          console.log(`Билет AR лотереи загружен: ${ticketData.id}`);
         } else {
+          // Создаем новый билет
+          console.log("Создание нового билета AR лотереи");
+          
           // Проверяем баланс пользователя
           if (user.balance < 75) {
             throw new Error("Недостаточно средств для покупки билета AR лотереи. Требуется 75 ₽.");
@@ -101,12 +139,17 @@ const ARLottery = () => {
             .update({ balance: user.balance - 75 })
             .eq("id", user.id);
             
-          if (balanceError) throw balanceError;
+          if (balanceError) {
+            console.error("Ошибка при списании средств:", balanceError);
+            throw balanceError;
+          }
           
-          // Создаем новый билет AR лотереи
+          // Генерируем результат лотереи
           const isWin = Math.random() < 0.25; // 25% шанс выигрыша
           const winAmount = isWin ? Math.floor(Math.random() * 900) + 100 : 0; // от 100 до 1000 руб
+          console.log(`Результат лотереи: ${isWin ? `Выигрыш ${winAmount} ₽` : "Проигрыш"}`);
 
+          // Создаем новый билет AR лотереи
           const { data: newTicket, error: createError } = await supabase
             .from("ar_lottery_tickets")
             .insert([
@@ -121,16 +164,25 @@ const ARLottery = () => {
             ])
             .select();
 
-          if (createError) throw createError;
+          if (createError) {
+            console.error("Ошибка при создании билета:", createError);
+            throw createError;
+          }
+          
+          console.log(`Билет AR лотереи создан: ${newTicket[0].id}`);
           
           // Начисляем выигрыш, если билет выигрышный
           if (isWin && winAmount > 0) {
+            console.log(`Начисление выигрыша: ${winAmount} ₽`);
             const { error: updateBalanceError } = await supabase
               .from("users")
               .update({ balance: user.balance - 75 + winAmount }) // Списываем стоимость и начисляем выигрыш
               .eq("id", user.id);
               
-            if (updateBalanceError) throw updateBalanceError;
+            if (updateBalanceError) {
+              console.error("Ошибка при начислении выигрыша:", updateBalanceError);
+              throw updateBalanceError;
+            }
           }
 
           setResult(newTicket[0]);
@@ -156,20 +208,14 @@ const ARLottery = () => {
   const startARSession = async () => {
     if (!arSupported && !isIOS) {
       alert(
-        "Ваш браузер не поддерживает AR. Пожалуйста, используйте совместимое устройство или браузер."
+        "Ваш браузер не поддерживает AR. Пожалуйста, используйте современный смартфон с Chrome или Safari."
       );
       return;
     }
 
     try {
-      // На iOS, перенаправляем сразу к ARLotteryView
-      if (isIOS) {
-        navigate(`/ar-lottery/view/${result.id}`);
-        return;
-      }
-
       setArReady(true);
-
+      
       // Отмечаем билет как просмотренный
       if (result && !result.viewed) {
         await supabase
@@ -177,8 +223,8 @@ const ARLottery = () => {
           .update({ viewed: true })
           .eq("id", result.id);
       }
-
-      // Для устройств с WebXR, перенаправляем на страницу просмотра
+      
+      // Перенаправляем на страницу просмотра
       navigate(`/ar-lottery/view/${result.id}`);
     } catch (err) {
       console.error("Ошибка при запуске AR:", err);
@@ -294,10 +340,14 @@ const ARLottery = () => {
           )}
 
           <div className="text-center">
+            {/* Информация о статусе поддержки AR */}
             {arSupported === false && !isIOS && (
               <div className="mb-4 p-3 bg-red-50 rounded-lg border border-red-200">
                 <p className="text-red-700">
                   Ваш браузер не поддерживает AR. Пожалуйста, используйте совместимое устройство (например, современный смартфон) и браузер (Chrome, Safari).
+                </p>
+                <p className="text-gray-600 text-sm mt-2">
+                  Обнаружено устройство: {deviceInfo}
                 </p>
               </div>
             )}
@@ -305,15 +355,27 @@ const ARLottery = () => {
             {isIOS && (
               <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
                 <p className="text-blue-700">
-                  Обнаружено устройство iOS. AR будет открыт с использованием AR Quick Look.
+                  Обнаружено устройство iOS. AR опыт будет открыт с использованием AR Quick Look.
+                </p>
+                <p className="text-gray-600 text-sm mt-2">
+                  {deviceInfo}
+                </p>
+              </div>
+            )}
+
+            {/* Если нет информации о поддержке AR - показываем сообщение о проверке */}
+            {arSupported === null && (
+              <div className="mb-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                <p className="text-yellow-700">
+                  Идет проверка поддержки AR на вашем устройстве...
                 </p>
               </div>
             )}
 
             <button
               onClick={startARSession}
-              disabled={loading}
-              className={`px-6 py-3 rounded-lg font-bold text-lg bg-yellow-500 text-black hover:bg-yellow-600`}
+              disabled={loading || !result}
+              className={`px-6 py-3 rounded-lg font-bold text-lg bg-yellow-500 text-black hover:bg-yellow-600 ${loading || !result ? "opacity-50 cursor-not-allowed" : ""}`}
             >
               {isIOS ? "Открыть в AR (iOS)" : "Запустить AR просмотр"}
             </button>
