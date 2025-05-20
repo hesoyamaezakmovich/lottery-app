@@ -1,4 +1,4 @@
-/* App.css - Минимальный код для AR функциональности */
+/* App.css - Фиксированный код для AR функциональности с улучшенной поддержкой кнопок */
 .App {
   text-align: center;
 }
@@ -11,64 +11,114 @@ body.ar-active .min-h-screen {
   background: transparent !important;
 }
 
-/* Важно: убираем все фоны на время AR-сессии */
+/* Прозрачные фоны для AR-сессии */
 .ar-active * {
   background-color: transparent !important;
   background-image: none !important;
 }
 
-/* Стили для canvas WebXR */
+/* Важно: правильные стили для AR-контейнера */
+.ar-container {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  background: transparent !important;
+  /* Важно - устанавливаем z-index ниже, чем у оверлея */
+  z-index: 1000 !important;
+  pointer-events: none !important; /* Ключевой момент - позволяет взаимодействовать с элементами поверх */
+}
+
+/* Стили для canvas внутри AR-контейнера */
 .ar-container canvas {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 1000;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important; 
+  height: 100% !important;
+  display: block !important;
+  object-fit: cover !important;
+  pointer-events: none !important; /* Разрешаем клики сквозь canvas */
   background: transparent !important;
 }
 
-/* Стили для UI-элементов в AR режиме */
+/* Улучшенные стили для UI-элементов в AR-режиме */
 .ar-overlay {
-  position: fixed;
-  z-index: 1001;
-  pointer-events: auto;
+  position: fixed !important;
+  z-index: 1500 !important; /* Более высокий z-index чем у AR-контейнера */
+  pointer-events: auto !important; /* Обязательно, чтобы кнопки работали */
+  background-color: rgba(0, 0, 0, 0.7) !important;
+  color: white !important;
+  padding: 16px !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
 }
 
-/* Контейнер для AR */
+/* Специальные стили для кнопок в AR-режиме */
+.ar-overlay button {
+  position: relative !important;
+  z-index: 1600 !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  padding: 10px 16px !important;
+  margin: 5px !important;
+  font-weight: bold !important;
+  border-radius: 6px !important;
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  transition: all 0.2s ease !important;
+}
+
+/* Усиленные стили при наведении */
+.ar-overlay button:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Усиленные стили при нажатии */
+.ar-overlay button:active {
+  transform: translateY(1px) !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Стили для страницы AR */
 .ar-page {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  z-index: 999;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  z-index: 999 !important;
 }
 
 /* Отключаем ненужные фоны */
 body, html, #root {
-  margin: 0;
-  padding: 0;
-  width: 100%;
-  height: 100%;
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
 }
 
-/* Исправление для App-header и других элементов */
-.App-header {
-  background-color: transparent !important;
-  color: white;
+/* Для всех кнопок в AR-режиме */
+body.ar-active button,
+.ar-active button {
+  position: relative !important;
+  z-index: 2000 !important; /* Очень высокий z-index */
+  pointer-events: auto !important;
 }
 
-/* Специфический фикс для AR сцены */
-.ar-session-active {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: transparent !important;
-  z-index: 1000;
+/* Увеличиваем размер кнопки для улучшения тапабельности на мобильных */
+.ar-active button {
+  min-height: 44px !important; /* Рекомендуемый размер для мобильных */
+  min-width: 44px !important;
+  padding: 10px 20px !important;
+  font-size: 16px !important;
+  margin: 10px !important;
 }
