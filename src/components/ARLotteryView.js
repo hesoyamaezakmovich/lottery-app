@@ -53,6 +53,100 @@ const ARLotteryView = () => {
     }
   };
 
+
+  useEffect(() => {
+    // Проверяем наличие параметра тестирования в URL
+    const isTestMode = new URLSearchParams(window.location.search).has('artest');
+    
+    if (isTestMode) {
+      // В тестовом режиме принудительно включаем AR и пропускаем hit-test
+      addLog("Запуск в тестовом режиме AR");
+      setIsWebXRSupported(true);
+      setArSupported(true);
+      
+      // Объединяем все этапы в одной функции для простоты тестирования
+      const simplifiedInit = async () => {
+        try {
+          // Создаем упрощенную сцену Three.js без WebXR
+          const scene = new THREE.Scene();
+          sceneRef.current = scene;
+          
+          const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+          camera.position.set(0, 0.5, 1.5);
+          cameraRef.current = camera;
+          
+          const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+          renderer.setPixelRatio(window.devicePixelRatio);
+          renderer.setSize(window.innerWidth, window.innerHeight);
+          rendererRef.current = renderer;
+          
+          if (containerRef.current) {
+            containerRef.current.appendChild(renderer.domElement);
+          }
+          
+          // Добавляем освещение
+          const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+          scene.add(ambientLight);
+          
+          const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+          directionalLight.position.set(0, 1, 1);
+          scene.add(directionalLight);
+          
+          // Загружаем модель без WebXR
+          const loader = new GLTFLoader();
+          const modelPath = ticket.is_win 
+              ? "/models/treasure_chest_win.glb" 
+              : "/models/treasure_chest_lose.glb";
+          
+          loader.load(
+            modelPath,
+            (gltf) => {
+              const model = gltf.scene;
+              model.scale.set(0.15, 0.15, 0.15);
+              model.position.set(0, 0, -0.5);
+              model.visible = true;
+              scene.add(model);
+              objectRef.current = model;
+              
+              // Настраиваем анимацию
+              if (gltf.animations && gltf.animations.length > 0) {
+                mixerRef.current = new THREE.AnimationMixer(model);
+                playSpecificAnimation(ticket.is_win);
+              }
+            },
+            null,
+            (error) => {
+              addLog(`Ошибка: ${error.message}`);
+              createFallbackModel(scene, ticket.is_win);
+            }
+          );
+          
+          // Запускаем анимационный цикл
+          const animate = () => {
+            requestAnimationFrame(animate);
+            
+            if (mixerRef.current) {
+              const delta = clock.current.getDelta();
+              mixerRef.current.update(delta);
+            }
+            
+            renderer.render(scene, camera);
+          };
+          
+          animate();
+          setArStarted(true);
+          
+        } catch (err) {
+          addLog(`Ошибка: ${err.message}`);
+          setError(err.message);
+        }
+      };
+      
+      // Запускаем упрощенную инициализацию
+      simplifiedInit();
+    }
+  }, [ticket]);
+  
   // Проверка платформы и поддержки WebXR
   useEffect(() => {
     addLog("Инициализация компонента");
