@@ -53,47 +53,50 @@ button {
 
 /* Сброс стилей для AR-контейнера */
 .ar-container {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  background: transparent; /* Важно! Прозрачный фон для AR */
-  z-index: 9999; /* Высокий z-index чтобы быть поверх всех элементов */
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  background: transparent !important; /* ОБЯЗАТЕЛЬНО прозрачный */
+  z-index: 9999 !important; /* Максимальный z-index */
 }
 
 /* Стили для canvas внутри AR контейнера */
 .ar-container canvas {
-  width: 100% !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important; 
   height: 100% !important;
-  display: block;
-  position: absolute;
-  top: 0;
-  left: 0;
+  display: block !important;
+  object-fit: cover !important;
+  pointer-events: auto !important;
+  background: transparent !important; /* ОБЯЗАТЕЛЬНО прозрачный */
 }
 
-/* Скрываем все другие элементы страницы при активном AR */
-body.ar-active {
-  overflow: hidden;
+/* Стили для body при активном AR */
+body.ar-mode {
   background: transparent !important;
+  overflow: hidden !important;
 }
 
-body.ar-active #root > *:not(.ar-page) {
+/* Скрытие других элементов при активном AR */
+body.ar-mode > *:not(.ar-container):not(.ar-ui) {
   display: none !important;
 }
 
-/* Сброс для элементов-обёрток React Router */
-.ar-page {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  margin: 0;
-  padding: 0;
-  background: transparent;
-  overflow: hidden;
+/* Стили для UI элементов поверх AR */
+.ar-ui {
+  position: fixed !important;
+  z-index: 10000 !important;
+  pointer-events: auto !important;
+}
+
+/* Временно устраняем все фоновые градиенты */
+#root, body, html, .min-h-screen, div {
+  background: none !important;
 }
