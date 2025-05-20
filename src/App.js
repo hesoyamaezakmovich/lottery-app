@@ -12,7 +12,7 @@ import InstantLotteries from "./components/InstantLotteries";
 import InstantLotteryGame from "./components/InstantLotteryGame";
 // Импортируем компоненты AR лотереи
 import ARLottery from "./components/ARLottery";  
-import ARLotteryView from "./components/ARLotteryView";
+import MinimalARLotteryView from "./components/MinimalARLotteryView";
 import { supabase } from "./supabaseClient";
 
 function App() {
@@ -108,7 +108,7 @@ function App() {
             />
             <Route
               path="/ar-lottery/view/:id"
-              element={<ARLotteryView />}
+              element={<MinimalARLotteryView />}
             />
           </Routes>
         </main>
