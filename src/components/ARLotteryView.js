@@ -51,19 +51,6 @@ const ARLotteryView = () => {
     console.log(`[AR] ${message}`); // Также выводим в консоль для отладки
   };
 
-
-  useEffect(() => {
-    if (viewStarted && arSupported) {
-      document.body.classList.add('ar-mode');
-    } else {
-      document.body.classList.remove('ar-mode');
-    }
-    
-    return () => {
-      document.body.classList.remove('ar-mode');
-    };
-  }, [viewStarted, arSupported]);
-  
   // Применяем класс ar-active к body при активной AR сессии
   useEffect(() => {
     if (arActive) {
@@ -232,72 +219,68 @@ const ARLotteryView = () => {
   // Создание и добавление сцены на страницу
   const setupScene = () => {
     if (!containerRef.current) {
-      console.error("Контейнер для рендеринга не найден");
+      addLog("Контейнер для рендеринга не найден");
       return null;
     }
-  
-    // Очищаем контейнер
+
+    // Очищаем контейнер перед добавлением нового канваса
     while (containerRef.current.firstChild) {
       containerRef.current.removeChild(containerRef.current.firstChild);
     }
-  
-    // Создаем сцену с ПОЛНОСТЬЮ ПРОЗРАЧНЫМ фоном
+
+    // Создаем сцену
     const scene = new THREE.Scene();
     sceneRef.current = scene;
-  
-    // Настраиваем камеру - стандартная перспективная камера
+
+    // Создаем камеру
     const camera = new THREE.PerspectiveCamera(
       70, 
       window.innerWidth / window.innerHeight, 
       0.01, 
-      1000
+      20
     );
     camera.position.set(0, 0, 0);
     cameraRef.current = camera;
-  
-    // Создаем WebGL рендерер - КРИТИЧЕСКИЕ НАСТРОЙКИ ДЛЯ AR
+
+    // Создаем WebGL рендерер
     const renderer = new THREE.WebGLRenderer({ 
       antialias: true,
-      alpha: true, // Прозрачный фон
-      logarithmicDepthBuffer: true, // Улучшает отображение в AR
-      preserveDrawingBuffer: true // Требуется для некоторых устройств
+      alpha: true,
+      powerPreference: "high-performance" // Для лучшей производительности на мобильных устройствах
     });
     
-    // Настраиваем рендерер для AR
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Ограничиваем pixelRatio для производительности 
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setClearColor(0x000000, 0); // Полностью прозрачный фон
     renderer.outputEncoding = THREE.sRGBEncoding;
-    renderer.physicallyCorrectLights = true; // Реалистичное освещение для AR
+    renderer.setClearColor(0x000000, 0); // Прозрачный фон
     rendererRef.current = renderer;
     
-    // Добавляем canvas в DOM с правильными стилями
+    // Добавляем канвас на страницу и применяем стили
     const canvas = renderer.domElement;
+    canvas.style.display = 'block';
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
     canvas.style.position = 'absolute';
     canvas.style.top = '0';
     canvas.style.left = '0';
-    canvas.style.width = '100%';
-    canvas.style.height = '100%';
-    canvas.style.zIndex = '1'; 
-    canvas.style.background = 'transparent';
+    canvas.style.zIndex = '1';
     containerRef.current.appendChild(canvas);
     
-    // Добавляем обработчик изменения размера
-    const handleResize = () => {
-      if (cameraRef.current && rendererRef.current) {
-        cameraRef.current.aspect = window.innerWidth / window.innerHeight;
-        cameraRef.current.updateProjectionMatrix();
-        rendererRef.current.setSize(window.innerWidth, window.innerHeight);
-      }
-    };
+    addLog("Рендерер создан и добавлен на страницу");
     
+    // Добавляем обработчик изменения размера окна
     window.addEventListener("resize", handleResize);
     
     return () => {
       window.removeEventListener("resize", handleResize);
+      
       if (rendererRef.current) {
         rendererRef.current.setAnimationLoop(null);
         rendererRef.current.dispose();
+      }
+      
+      if (controlsRef.current) {
+        controlsRef.current.dispose();
       }
     };
   };
