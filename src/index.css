@@ -1,8 +1,9 @@
-/* Additional CSS for index.css to fix white margin issues */
+/* Базовые стили Tailwind */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* Устранение проблем с белыми полями на странице */
 html, body, #root {
   margin: 0;
   padding: 0;
@@ -14,44 +15,19 @@ html, body, #root {
   font-family: 'Roboto', sans-serif;
 }
 
-/* Fix to remove any potential white margins */
+/* Установка box-sizing для всех элементов */
 * {
   box-sizing: border-box;
 }
 
-/* Stretch all main containers to full width */
+/* Растягивание контейнеров на полную ширину */
 main, div.min-h-screen {
   width: 100%;
   max-width: 100vw;
   overflow-x: hidden;
 }
 
-/* Улучшение шрифтов и теней для текста */
-h3 {
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-}
-
-p {
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-}
-
-/* Улучшение кнопок */
-button {
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-}
-
-/* Fix for mobile viewports */
-@media (max-width: 640px) {
-  body, html, #root {
-    width: 100vw;
-    overflow-x: hidden;
-  }
-}
-
-/* Специальные стили для AR-компонента */
-/* Добавьте эти стили в index.css или создайте отдельный файл стилей */
-
-/* Сброс стилей для AR-контейнера */
+/* Основные стили для AR-компонента */
 .ar-container {
   position: fixed !important;
   top: 0 !important;
@@ -61,11 +37,11 @@ button {
   margin: 0 !important;
   padding: 0 !important;
   overflow: hidden !important;
-  background: transparent !important; /* ОБЯЗАТЕЛЬНО прозрачный */
-  z-index: 9999 !important; /* Максимальный z-index */
+  background: transparent !important;
+  z-index: 9999 !important;
 }
 
-/* Стили для canvas внутри AR контейнера */
+/* Стили для canvas внутри AR-контейнера */
 .ar-container canvas {
   position: absolute !important;
   top: 0 !important;
@@ -75,28 +51,37 @@ button {
   display: block !important;
   object-fit: cover !important;
   pointer-events: auto !important;
-  background: transparent !important; /* ОБЯЗАТЕЛЬНО прозрачный */
+  background: transparent !important;
 }
 
-/* Стили для body при активном AR */
-body.ar-mode {
+/* Стили для режима AR на уровне body */
+body.ar-active {
   background: transparent !important;
   overflow: hidden !important;
 }
 
-/* Скрытие других элементов при активном AR */
-body.ar-mode > *:not(.ar-container):not(.ar-ui) {
-  display: none !important;
+/* Стили для UI-элементов поверх AR */
+.ar-page {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
 }
 
-/* Стили для UI элементов поверх AR */
-.ar-ui {
-  position: fixed !important;
-  z-index: 10000 !important;
-  pointer-events: auto !important;
+/* Стили для оверлеев в AR-режиме */
+.ar-overlay {
+  position: fixed;
+  z-index: 1000;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 15px;
+  border-radius: 8px;
 }
 
-/* Временно устраняем все фоновые градиенты */
-#root, body, html, .min-h-screen, div {
-  background: none !important;
+/* Адаптация для мобильных устройств */
+@media (max-width: 640px) {
+  body, html, #root {
+    width: 100vw;
+    overflow-x: hidden;
+  }
 }

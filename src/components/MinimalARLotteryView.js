@@ -3,8 +3,9 @@ import * as THREE from 'three';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { ClipLoader } from 'react-spinners';
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
-// Минимальный AR-компонент с фокусом только на запуске AR
+// Improved AR/3D viewer with multiple fixes
 function MinimalARLotteryView() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -13,8 +14,9 @@ function MinimalARLotteryView() {
   const [ticket, setTicket] = useState(null);
   const [debugLog, setDebugLog] = useState([]);
   const [ar3DMode, setAr3DMode] = useState('none'); // 'none', 'ar', '3d'
+  const [showDebug, setShowDebug] = useState(false);
   
-  // Refs для Three.js и WebXR
+  // Refs for Three.js and WebXR
   const containerRef = useRef(null);
   const sceneRef = useRef(null);
   const cameraRef = useRef(null);
@@ -22,14 +24,18 @@ function MinimalARLotteryView() {
   const xrSessionRef = useRef(null);
   const objectRef = useRef(null);
   const reticleRef = useRef(null);
+  const controlsRef = useRef(null);
+  const mixerRef = useRef(null);
+  const clockRef = useRef(new THREE.Clock());
+  const animationFrameRef = useRef(null);
   
-  // Функция логирования для отладки
+  // Logging function for debugging
   const addLog = (message) => {
     console.log(`[AR] ${message}`);
-    setDebugLog(prev => [...prev, `${message}`].slice(-10));
+    setDebugLog(prev => [...prev, `${message}`].slice(-15));
   };
   
-  // Получаем данные билета
+  // Fetch ticket data
   useEffect(() => {
     const fetchTicket = async () => {
       try {
@@ -42,10 +48,10 @@ function MinimalARLotteryView() {
           
         if (error) throw error;
         setTicket(data);
-        addLog(`Билет загружен: ID ${id}, выигрыш: ${data.is_win ? 'да' : 'нет'}`);
+        addLog(`Ticket loaded: ID ${id}, win: ${data.is_win ? 'yes' : 'no'}`);
       } catch (err) {
-        setError(`Ошибка при загрузке билета: ${err.message}`);
-        addLog(`Ошибка: ${err.message}`);
+        setError(`Error loading ticket: ${err.message}`);
+        addLog(`Error: ${err.message}`);
       } finally {
         setLoading(false);
       }
@@ -54,7 +60,7 @@ function MinimalARLotteryView() {
     fetchTicket();
   }, [id]);
 
-  // Очистка ресурсов при размонтировании
+  // Clean up resources when unmounting
   useEffect(() => {
     return () => {
       if (xrSessionRef.current) {
@@ -62,120 +68,167 @@ function MinimalARLotteryView() {
       }
       
       if (rendererRef.current) {
+        rendererRef.current.setAnimationLoop(null);
         rendererRef.current.dispose();
       }
       
-      document.documentElement.style.backgroundColor = '';
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      
+      // Reset body styles
+      document.body.classList.remove('ar-active');
+      document.body.style.background = '';
       document.body.style.backgroundColor = '';
     };
   }, []);
+
+  // Handle window resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (cameraRef.current && rendererRef.current) {
+        cameraRef.current.aspect = window.innerWidth / window.innerHeight;
+        cameraRef.current.updateProjectionMatrix();
+        rendererRef.current.setSize(window.innerWidth, window.innerHeight);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   
-  // Инициализация базовой 3D сцены (без AR)
+  // Initialize basic 3D scene (fallback mode)
   const init3DScene = () => {
     if (!containerRef.current) return;
-    addLog('Инициализация 3D режима');
+    addLog('Initializing 3D mode');
     
     try {
-      // Очистка контейнера
+      // Clear container
       while (containerRef.current.firstChild) {
         containerRef.current.removeChild(containerRef.current.firstChild);
       }
       
-      // Создаем сцену
+      // Create scene
       const scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x6633aa); // Фиолетовый фон для 3D режима
+      scene.background = new THREE.Color(0x6633aa); // Purple background for 3D mode
       sceneRef.current = scene;
       
-      // Создаем камеру
+      // Create camera
       const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
       camera.position.z = 3;
       cameraRef.current = camera;
       
-      // Создаем рендерер
+      // Create renderer
       const renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       rendererRef.current = renderer;
       
-      // Добавляем канвас на страницу
+      // Add canvas to page
       containerRef.current.appendChild(renderer.domElement);
       
-      // Добавляем свет
-      const light = new THREE.AmbientLight(0xffffff, 1);
-      scene.add(light);
+      // Add lights
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+      scene.add(ambientLight);
       
-      // Создаем простой куб
-      const geometry = new THREE.BoxGeometry(1, 1, 1);
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      directionalLight.position.set(1, 2, 3);
+      scene.add(directionalLight);
+      
+      // Create a cube or chest model
+      const geometry = new THREE.BoxGeometry(1, 0.8, 0.7);
       const material = new THREE.MeshStandardMaterial({ 
-        color: ticket && ticket.is_win ? 0xffcc00 : 0xcccccc 
+        color: ticket && ticket.is_win ? 0xffcc00 : 0xcccccc,
+        roughness: 0.4,
+        metalness: 0.6
       });
       const cube = new THREE.Mesh(geometry, material);
       scene.add(cube);
       objectRef.current = cube;
       
-      // Анимация вращения
+      // Add OrbitControls for interactive rotation
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controlsRef.current = controls;
+      
+      // Animation loop
       const animate = () => {
-        requestAnimationFrame(animate);
         if (objectRef.current) {
-          objectRef.current.rotation.x += 0.01;
-          objectRef.current.rotation.y += 0.01;
+          // Subtle automatic rotation
+          objectRef.current.rotation.y += 0.005;
         }
-        rendererRef.current.render(scene, camera);
+        
+        if (controlsRef.current) {
+          controlsRef.current.update();
+        }
+        
+        if (rendererRef.current && sceneRef.current && cameraRef.current) {
+          rendererRef.current.render(sceneRef.current, cameraRef.current);
+        }
+        
+        animationFrameRef.current = requestAnimationFrame(animate);
       };
       
       animate();
-      addLog('3D сцена инициализирована успешно');
+      addLog('3D scene initialized successfully');
       
     } catch (err) {
-      addLog(`Ошибка при инициализации 3D: ${err.message}`);
-      setError(`Ошибка 3D: ${err.message}`);
+      addLog(`Error initializing 3D: ${err.message}`);
+      setError(`3D Error: ${err.message}`);
     }
   };
   
-  // Инициализация AR
+  // Initialize AR mode
   const initAR = async () => {
     if (!containerRef.current) return;
-    addLog('Инициализация AR режима');
+    addLog('Initializing AR mode');
     
     try {
-      // Запрашиваем доступ к камере явно перед запуском AR
+      // Explicitly request camera permissions before launching AR
       try {
-        addLog('Запрос разрешения на доступ к камере...');
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        addLog('Requesting camera permission...');
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: {
+            facingMode: 'environment', // Use back camera
+            width: { ideal: window.innerWidth },
+            height: { ideal: window.innerHeight }
+          } 
+        });
         stream.getTracks().forEach(track => track.stop());
-        addLog('Разрешение на доступ к камере получено');
+        addLog('Camera permission granted');
       } catch (err) {
-        addLog(`Ошибка доступа к камере: ${err.message}`);
-        throw new Error(`Необходим доступ к камере для AR. ${err.message}`);
+        addLog(`Camera access error: ${err.message}`);
+        throw new Error(`Camera access required for AR. ${err.message}`);
       }
       
-      // Проверяем поддержку WebXR
+      // Check WebXR support
       if (!navigator.xr) {
-        throw new Error('WebXR не поддерживается в этом браузере');
+        throw new Error('WebXR not supported in this browser');
       }
       
       const isArSupported = await navigator.xr.isSessionSupported('immersive-ar');
       if (!isArSupported) {
-        throw new Error('Ваше устройство не поддерживает AR');
+        throw new Error('AR not supported on this device');
       }
       
-      // Очистка контейнера
+      // Clear container
       while (containerRef.current.firstChild) {
         containerRef.current.removeChild(containerRef.current.firstChild);
       }
       
-      // Удаляем все фоновые цвета на время AR сессии
-      document.documentElement.style.backgroundColor = 'transparent';
-      document.body.style.backgroundColor = 'transparent';
+      // Set transparent background for AR session
+      document.body.classList.add('ar-active');
       
-      // Создаем сцену
+      // Create scene with transparent background
       const scene = new THREE.Scene();
       sceneRef.current = scene;
       
-      // Создаем камеру
-      const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 100);
+      // Create camera
+      const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
       cameraRef.current = camera;
       
-      // Создаем рендерер с прозрачным фоном для AR
+      // Create renderer with transparent background for AR
       const renderer = new THREE.WebGLRenderer({
         alpha: true,
         antialias: true,
@@ -184,10 +237,10 @@ function MinimalARLotteryView() {
       renderer.setPixelRatio(window.devicePixelRatio);
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.xr.enabled = true;
-      renderer.setClearColor(0x000000, 0); // Полностью прозрачный фон
+      renderer.setClearColor(0x000000, 0); // Completely transparent background
       rendererRef.current = renderer;
       
-      // Добавляем канвас на страницу с правильными стилями
+      // Add canvas to page with proper styles
       const canvas = renderer.domElement;
       canvas.style.position = 'absolute';
       canvas.style.top = '0';
@@ -198,25 +251,29 @@ function MinimalARLotteryView() {
       canvas.style.background = 'transparent';
       containerRef.current.appendChild(canvas);
       
-      // Добавляем свет
-      const light = new THREE.AmbientLight(0xffffff, 1);
-      scene.add(light);
+      // Add lights
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+      scene.add(ambientLight);
       
-      // Создаем простой куб
-      const geometry = new THREE.BoxGeometry(0.15, 0.15, 0.15);
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+      directionalLight.position.set(0, 5, 10);
+      scene.add(directionalLight);
+      
+      // Create treasure chest model (simple box for now)
+      const geometry = new THREE.BoxGeometry(0.15, 0.12, 0.1);
       const material = new THREE.MeshStandardMaterial({
         color: ticket && ticket.is_win ? 0xffdd00 : 0xcccccc,
         roughness: 0.3,
         metalness: 0.8
       });
-      const cube = new THREE.Mesh(geometry, material);
-      scene.add(cube);
-      cube.visible = false; // Сначала скрываем, покажем после размещения
-      objectRef.current = cube;
+      const chest = new THREE.Mesh(geometry, material);
+      scene.add(chest);
+      chest.visible = false; // Hide until placed
+      objectRef.current = chest;
       
-      // Создаем маркер-прицел для размещения
+      // Create reticle for placement
       const reticle = new THREE.Mesh(
-        new THREE.RingGeometry(0.15, 0.2, 32).rotateX(-Math.PI / 2),
+        new THREE.RingGeometry(0.08, 0.11, 32).rotateX(-Math.PI / 2),
         new THREE.MeshBasicMaterial({ color: 0xffffff })
       );
       reticle.matrixAutoUpdate = false;
@@ -224,8 +281,8 @@ function MinimalARLotteryView() {
       scene.add(reticle);
       reticleRef.current = reticle;
       
-      // Настройка и запуск AR сессии
-      addLog('Запрос AR сессии...');
+      // Set up and start AR session
+      addLog('Requesting AR session...');
       const session = await navigator.xr.requestSession('immersive-ar', {
         requiredFeatures: ['hit-test'],
         optionalFeatures: ['dom-overlay'],
@@ -233,47 +290,52 @@ function MinimalARLotteryView() {
       });
       
       xrSessionRef.current = session;
-      addLog('AR сессия создана');
+      addLog('AR session created');
       
+      // Set reference space and session
       await renderer.xr.setSession(session);
+      renderer.xr.setReferenceSpaceType('local');
       
       let hitTestSource = null;
-      const hitTestSourceRequested = false;
+      let hitTestSourceRequested = false;
       
-      // Обработчик нажатия для размещения объекта
+      // Handle tap to place the object
       session.addEventListener('select', () => {
-        if (reticleRef.current.visible) {
-          // Копируем позицию маркера
-          objectRef.current.position.setFromMatrixPosition(reticleRef.current.matrix);
-          objectRef.current.visible = true;
+        if (reticleRef.current && reticleRef.current.visible) {
+          // Copy reticle position to place object
+          if (objectRef.current) {
+            objectRef.current.position.setFromMatrixPosition(reticleRef.current.matrix);
+            objectRef.current.visible = true;
+          }
           reticleRef.current.visible = false;
-          addLog('Объект размещен');
+          addLog('Object placed');
         }
       });
       
-      // Обработка закрытия сессии
+      // Handle session end
       session.addEventListener('end', () => {
         xrSessionRef.current = null;
-        addLog('AR сессия завершена');
-        if (rendererRef.current) {
-          rendererRef.current.setAnimationLoop(null);
-        }
+        addLog('AR session ended');
+        document.body.classList.remove('ar-active');
         setAr3DMode('none');
       });
       
-      // Анимационный цикл для AR
+      // Animation loop for AR
       renderer.setAnimationLoop((timestamp, frame) => {
         if (!frame) return;
         
-        // Обработка hit-test для поиска поверхностей
-        if (!objectRef.current.visible) {
+        // Handle hit testing for surface detection
+        if (objectRef.current && !objectRef.current.visible) {
           if (!hitTestSource && !hitTestSourceRequested) {
-            // Запрашиваем hitTestSource только один раз
             session.requestReferenceSpace('viewer').then((viewerSpace) => {
               session.requestHitTestSource({ space: viewerSpace }).then((source) => {
                 hitTestSource = source;
-                addLog('Hit test source создан');
+                addLog('Hit test source created');
+              }).catch(e => {
+                addLog(`Hit test source error: ${e.message}`);
               });
+            }).catch(e => {
+              addLog(`Viewer space error: ${e.message}`);
             });
             
             hitTestSourceRequested = true;
@@ -281,42 +343,51 @@ function MinimalARLotteryView() {
           
           if (hitTestSource && frame) {
             const referenceSpace = renderer.xr.getReferenceSpace();
-            const hitTestResults = frame.getHitTestResults(hitTestSource);
-            
-            if (hitTestResults.length > 0) {
-              const hit = hitTestResults[0];
-              const hitPose = hit.getPose(referenceSpace);
+            if (referenceSpace) {
+              const hitTestResults = frame.getHitTestResults(hitTestSource);
               
-              if (hitPose) {
-                reticleRef.current.visible = true;
-                reticleRef.current.matrix.fromArray(hitPose.transform.matrix);
+              if (hitTestResults.length > 0) {
+                const hit = hitTestResults[0];
+                const hitPose = hit.getPose(referenceSpace);
+                
+                if (hitPose && reticleRef.current) {
+                  reticleRef.current.visible = true;
+                  reticleRef.current.matrix.fromArray(hitPose.transform.matrix);
+                }
+              } else if (reticleRef.current) {
+                reticleRef.current.visible = false;
               }
-            } else {
-              reticleRef.current.visible = false;
             }
           }
         }
         
-        // Обновляем сцену
-        if (objectRef.current.visible) {
+        // Update animations and render
+        if (objectRef.current && objectRef.current.visible) {
           objectRef.current.rotation.y += 0.01;
         }
         
-        // Рендер сцены
-        renderer.render(scene, camera);
+        if (mixerRef.current) {
+          const delta = clockRef.current.getDelta();
+          mixerRef.current.update(delta);
+        }
+        
+        // Render scene
+        if (rendererRef.current && sceneRef.current && cameraRef.current) {
+          rendererRef.current.render(sceneRef.current, cameraRef.current);
+        }
       });
       
-      addLog('AR инициализирован успешно');
+      addLog('AR initialized successfully');
       
     } catch (err) {
-      addLog(`Ошибка при инициализации AR: ${err.message}`);
-      setError(`Ошибка AR: ${err.message}`);
-      // Переключаемся на fallback 3D режим при ошибке AR
+      addLog(`Error initializing AR: ${err.message}`);
+      setError(`AR Error: ${err.message}`);
+      // Fallback to 3D mode if AR fails
       setAr3DMode('3d');
     }
   };
   
-  // Запуск AR или 3D режима при выборе пользователя
+  // Start AR or 3D mode based on user choice
   useEffect(() => {
     if (ar3DMode === 'ar') {
       initAR();
@@ -325,273 +396,180 @@ function MinimalARLotteryView() {
     }
   }, [ar3DMode]);
 
-  // Обработчик для выхода из AR сессии
+  // Handle exiting AR session
   const handleExitAR = () => {
     if (xrSessionRef.current) {
       xrSessionRef.current.end().catch(console.error);
     }
   };
 
-  // Показываем загрузку
+  // Loading screen
   if (loading) {
     return (
-      <div style={{ 
-        height: '100vh', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        background: 'black'
-      }}>
+      <div className="min-h-screen flex items-center justify-center bg-gray-900">
         <ClipLoader color="#fff" size={50} />
       </div>
     );
   }
 
-  // Показываем ошибку
+  // Error screen
   if (error && ar3DMode === 'none') {
     return (
-      <div style={{ 
-        height: '100vh', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        flexDirection: 'column',
-        padding: '20px',
-        background: 'black',
-        color: 'white'
-      }}>
-        <h2 style={{ color: 'red', marginBottom: '20px' }}>Ошибка</h2>
-        <p style={{ marginBottom: '20px', textAlign: 'center' }}>{error}</p>
-        <div style={{ display: 'flex', gap: '10px' }}>
+      <div className="min-h-screen flex items-center justify-center flex-col p-5 bg-gray-900 text-white">
+        <h2 className="text-2xl font-bold text-red-500 mb-4">Error</h2>
+        <p className="mb-6 text-center">{error}</p>
+        <div className="flex gap-4">
           <button 
             onClick={() => setAr3DMode('3d')}
-            style={{
-              padding: '10px 20px',
-              background: 'blue',
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px'
-            }}
+            className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
-            Попробовать 3D режим
+            Try 3D Mode Instead
           </button>
           <button 
             onClick={() => navigate('/dashboard')}
-            style={{
-              padding: '10px 20px',
-              background: 'gray',
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px'
-            }}
+            className="px-5 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
           >
-            Вернуться
+            Return to Dashboard
           </button>
         </div>
       </div>
     );
   }
 
-  // Основной интерфейс выбора режима (AR или 3D)
+  // Mode selection screen
   if (ar3DMode === 'none') {
     return (
-      <div style={{ 
-        height: '100vh', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        flexDirection: 'column',
-        padding: '20px',
-        background: 'black',
-        color: 'white'
-      }}>
-        <h2 style={{ marginBottom: '20px', fontSize: '24px' }}>Сундук с сокровищами</h2>
+      <div className="min-h-screen flex items-center justify-center flex-col p-5 bg-gray-900 text-white">
+        <h2 className="text-3xl font-bold mb-8">Treasure Chest</h2>
         
         {ticket && (
-          <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+          <div className="text-center mb-10">
             {ticket.is_win ? (
               <>
-                <div style={{ fontSize: '48px', marginBottom: '10px' }}>💰</div>
-                <p style={{ color: 'gold', fontWeight: 'bold', fontSize: '20px' }}>
-                  Поздравляем! Вы выиграли {ticket.win_amount} ₽
+                <div className="text-6xl mb-4">💰</div>
+                <p className="text-2xl font-bold text-yellow-400 mb-2">
+                  Congratulations! You won {ticket.win_amount} ₽
                 </p>
               </>
             ) : (
               <>
-                <div style={{ fontSize: '48px', marginBottom: '10px' }}>📦</div>
-                <p style={{ color: 'silver', fontSize: '20px' }}>
-                  К сожалению, вы не выиграли в этот раз
+                <div className="text-6xl mb-4">📦</div>
+                <p className="text-2xl text-gray-300 mb-2">
+                  Sorry, no win this time
                 </p>
               </>
             )}
           </div>
         )}
         
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', width: '100%', maxWidth: '300px' }}>
+        <div className="flex flex-col gap-4 w-full max-w-xs">
           <button 
             onClick={() => setAr3DMode('ar')}
-            style={{
-              padding: '15px',
-              backgroundColor: 'green',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '18px',
-              fontWeight: 'bold'
-            }}
+            className="px-6 py-4 bg-green-600 text-white rounded-xl font-bold text-lg hover:bg-green-700 transition-colors shadow-lg"
           >
-            Запустить AR
+            Launch AR Experience
           </button>
           
           <button 
             onClick={() => setAr3DMode('3d')}
-            style={{
-              padding: '15px',
-              backgroundColor: 'blue',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '18px',
-              fontWeight: 'bold'
-            }}
+            className="px-6 py-4 bg-blue-600 text-white rounded-xl font-bold text-lg hover:bg-blue-700 transition-colors shadow-lg"
           >
-            3D Просмотр (без AR)
+            3D View (No AR)
           </button>
           
           <button 
             onClick={() => navigate('/dashboard')}
-            style={{
-              padding: '15px',
-              backgroundColor: 'gray',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '18px'
-            }}
+            className="px-6 py-4 bg-gray-600 text-white rounded-xl text-lg hover:bg-gray-700 transition-colors mt-2"
           >
-            Вернуться на главную
+            Back to Dashboard
           </button>
         </div>
         
-        <div style={{ marginTop: '30px', fontSize: '14px', color: '#aaa' }}>
-          AR требует разрешения на доступ к камере и работает только на поддерживаемых устройствах
-        </div>
+        <p className="mt-8 text-sm text-gray-400 max-w-md text-center">
+          AR mode requires camera permissions and works only on compatible devices.
+          If you encounter problems, try the 3D view instead.
+        </p>
+        
+        <button 
+          onClick={() => setShowDebug(!showDebug)} 
+          className="mt-4 text-xs text-gray-500 underline"
+        >
+          {showDebug ? 'Hide Debug' : 'Show Debug'}
+        </button>
       </div>
     );
   }
 
-  // 3D или AR режим активен
+  // AR or 3D mode active
   return (
-    <div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
-      {/* Контейнер для Three.js / AR */}
+    <div className="relative w-screen h-screen">
+      {/* Three.js container */}
       <div 
         ref={containerRef} 
-        style={{ 
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          background: ar3DMode === 'ar' ? 'transparent' : '#6633aa'
-        }}
+        className={`fixed inset-0 w-full h-full ${ar3DMode === 'ar' ? 'bg-transparent' : 'bg-gray-900'}`}
       />
       
-      {/* Интерфейс поверх сцены */}
-      <div style={{
-        position: 'absolute',
-        bottom: '40px',
-        left: 0,
-        right: 0,
-        display: 'flex',
-        justifyContent: 'center',
-        zIndex: 10001
-      }}>
-        <div style={{
-          background: 'rgba(0,0,0,0.7)',
-          color: 'white',
-          padding: '15px',
-          borderRadius: '8px',
-          textAlign: 'center'
-        }}>
-          <p style={{ marginBottom: '15px', fontWeight: 'bold' }}>
+      {/* UI overlay */}
+      <div className="fixed bottom-20 left-0 right-0 flex justify-center z-10">
+        <div className="bg-black bg-opacity-70 text-white px-6 py-4 rounded-xl">
+          <p className="font-bold mb-4 text-center text-lg">
             {ticket && ticket.is_win 
-              ? `Поздравляем! Вы выиграли ${ticket.win_amount} ₽` 
-              : "К сожалению, сундук оказался пуст"}
+              ? `Congratulations! You won ${ticket.win_amount} ₽` 
+              : "The chest is empty this time"}
           </p>
-          <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+          <div className="flex justify-center gap-4">
             {ar3DMode === 'ar' && (
               <button
                 onClick={handleExitAR}
-                style={{
-                  padding: '8px 16px',
-                  background: 'red',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '5px'
-                }}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
               >
-                Выйти из AR
+                Exit AR
               </button>
             )}
             <button
-              onClick={() => navigate('/dashboard')}
-              style={{
-                padding: '8px 16px',
-                background: 'gray',
-                color: 'white',
-                border: 'none',
-                borderRadius: '5px'
+              onClick={() => {
+                if (ar3DMode === 'ar' && xrSessionRef.current) {
+                  xrSessionRef.current.end().catch(console.error);
+                }
+                navigate('/dashboard');
               }}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
             >
-              На главную
+              Dashboard
             </button>
           </div>
         </div>
       </div>
       
-      {/* Инструкции для AR */}
+      {/* AR placement instructions */}
       {ar3DMode === 'ar' && (
-        <div style={{
-          position: 'absolute',
-          top: '40px',
-          left: 0,
-          right: 0,
-          display: 'flex',
-          justifyContent: 'center',
-          zIndex: 10001
-        }}>
-          <div style={{
-            background: 'rgba(0,0,0,0.7)',
-            color: 'white',
-            padding: '15px',
-            borderRadius: '8px',
-            textAlign: 'center'
-          }}>
-            <p>Найдите плоскую поверхность и нажмите, чтобы разместить сундук</p>
+        <div className="fixed top-20 left-0 right-0 flex justify-center z-10">
+          <div className="bg-black bg-opacity-70 text-white px-6 py-4 rounded-xl max-w-xs text-center">
+            <p className="font-bold mb-1">Find a flat surface</p>
+            <p className="text-sm">Tap to place the treasure chest</p>
           </div>
         </div>
       )}
       
-      {/* Отладочные логи */}
-      <div style={{
-        position: 'absolute',
-        top: '10px',
-        left: '10px',
-        background: 'rgba(0,0,0,0.7)',
-        color: 'white',
-        padding: '10px',
-        borderRadius: '5px',
-        fontSize: '12px',
-        maxWidth: '80%',
-        zIndex: 10001,
-        maxHeight: '200px',
-        overflowY: 'auto'
-      }}>
-        <p style={{ fontWeight: 'bold', marginBottom: '5px' }}>Отладка:</p>
-        {debugLog.map((log, index) => (
-          <div key={index}>{log}</div>
-        ))}
-      </div>
+      {/* Debug panel */}
+      {showDebug && (
+        <div className="fixed top-4 left-4 right-4 bg-black bg-opacity-80 text-white p-3 rounded-lg text-xs z-20 max-h-40 overflow-y-auto">
+          <div className="flex justify-between items-center mb-1">
+            <span className="font-bold">Debug</span>
+            <button 
+              onClick={() => setShowDebug(false)} 
+              className="text-xs bg-red-600 px-2 py-0.5 rounded"
+            >
+              Close
+            </button>
+          </div>
+          <p>Mode: {ar3DMode}</p>
+          <p>AR session: {xrSessionRef.current ? 'active' : 'inactive'}</p>
+          {debugLog.map((log, i) => (
+            <div key={i} className="text-gray-300">{log}</div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
