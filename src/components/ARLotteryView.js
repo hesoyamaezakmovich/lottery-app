@@ -312,7 +312,7 @@ const ARLotteryView = () => {
         chestModelPath,
         (gltf) => {
           const model = gltf.scene;
-          model.scale.set(0.1, 0.1, 0.1);
+          model.scale.set(0.2, 0.2, 0.2); // Увеличим масштаб
           model.visible = false;
           scene.add(model);
           objectRef.current = model;
@@ -343,7 +343,7 @@ const ARLotteryView = () => {
           });
           const box = new THREE.Mesh(boxGeometry, boxMaterial);
           box.visible = true;
-          box.position.set(0, 0, -0.5); // Ближе к камере
+          box.position.set(0, 0, -0.3);
           scene.add(box);
           objectRef.current = box;
           addLog("Создан резервный сундук для AR");
@@ -351,9 +351,8 @@ const ARLotteryView = () => {
       );
   
       const button = ARButton.createButton(renderer, {
-        requiredFeatures: [], // Без hit-test для тестирования
-        optionalFeatures: ["dom-overlay"],
-        domOverlay: { root: document.body },
+        requiredFeatures: [], // Без hit-test
+        optionalFeatures: [], // Убираем domOverlay для теста
       });
       document.body.appendChild(button);
   
@@ -364,8 +363,8 @@ const ARLotteryView = () => {
   
         if (objectRef.current && !objectRef.current.visible) {
           addLog("Размещение сундука по умолчанию");
-          objectRef.current.position.set(0, 0, -0.5); // Ближе к камере
-          objectRef.current.scale.set(0.1, 0.1, 0.1);
+          objectRef.current.position.set(0, 0, -0.3);
+          objectRef.current.scale.set(0.2, 0.2, 0.2);
           objectRef.current.rotation.set(0, 0, 0);
           objectRef.current.visible = true;
           playSpecificAnimation(ticket.is_win);
@@ -558,15 +557,17 @@ const ARLotteryView = () => {
 
   // Оптимизированный метод для hit-testing в AR
   const onXRFrame = (time, frame) => {
-    if (!cameraRef.current || !rendererRef.current || !sceneRef.current) return;
+    if (!cameraRef.current || !rendererRef.current || !sceneRef.current) {
+      addLog("Ошибка: Камера, рендерер или сцена не инициализированы");
+      return;
+    }
   
-    // Удаляем логику hit-test для упрощения
     if (objectRef.current && !objectRef.current.visible) {
       addLog("Размещение сундука по умолчанию в XR");
-      objectRef.current.position.set(0, 0, -1.0);
-      objectRef.current.scale.set(0.1, 0.1, 0.1);
+      objectRef.current.position.set(0, 0, -0.3); // Еще ближе к камере
+      objectRef.current.scale.set(0.2, 0.2, 0.2); // Увеличим масштаб для видимости
       objectRef.current.rotation.set(0, 0, 0);
-      objectRef.current.visible = true; // Убедимся, что виден
+      objectRef.current.visible = true;
       playSpecificAnimation(ticket.is_win);
     }
   
@@ -575,6 +576,7 @@ const ARLotteryView = () => {
       mixerRef.current.update(delta);
     }
   
+    addLog("Рендеринг выполнен"); // Лог для проверки
     rendererRef.current.render(sceneRef.current, cameraRef.current);
   };
 
