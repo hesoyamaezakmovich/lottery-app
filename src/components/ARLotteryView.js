@@ -5,7 +5,6 @@ import { ClipLoader } from "react-spinners";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { QRCodeCanvas } from "qrcode.react"; // Импортируем библиотеку для QR-кода
 
 const ARLotteryView = () => {
   const { id } = useParams();
@@ -495,165 +494,166 @@ const ARLotteryView = () => {
     setViewStarted(true);
   };
 
-  // Формируем URL для QR-кода
-  const qrCodeUrl = `${window.location.origin}/ar-lottery/${id}`;
+  // Показываем индикатор загрузки
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <ClipLoader size={40} color="#000" />
+      </div>
+    );
+  }
+
+  // Показываем ошибку
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+          <h2 className="text-2xl font-bold text-black mb-4 text-center">Ошибка</h2>
+          <p className="text-red-600 text-center">{error}</p>
+          <button
+            onClick={() => navigate("/dashboard")}
+            className="mt-4 w-full py-2 px-4 bg-yellow-500 text-black font-semibold rounded-md hover:bg-yellow-600"
+          >
+            Вернуться на главную
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Показываем сообщение, если билет не найден
+  if (!ticket) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+          <h2 className="text-2xl font-bold text-black mb-4 text-center">Билет не найден</h2>
+          <p className="text-gray-700 text-center">Билет AR лотереи не найден или был удален.</p>
+          <button
+            onClick={() => navigate("/dashboard")}
+            className="mt-4 w-full py-2 px-4 bg-yellow-500 text-black font-semibold rounded-md hover:bg-yellow-600"
+          >
+            Вернуться на главную
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Основной интерфейс
   return (
     <div className="h-screen relative">
       {/* Контейнер для AR/3D сцены */}
       <div ref={containerRef} className="absolute inset-0" style={{ zIndex: 0 }}></div>
-
-      {/* QR-код в правом верхнем углу, отображается всегда */}
-      <div
-        className="absolute top-4 right-4 bg-white p-2 rounded-lg shadow-md z-50"
-        style={{ pointerEvents: "none" }}
-      >
-        <QRCodeCanvas
-          value={qrCodeUrl}
-          size={80}
-          bgColor="#ffffff"
-          fgColor="#000000"
-          level="Q"
-        />
-      </div>
-
-      {/* Индикатор загрузки */}
-      {loading ? (
-        <div className="min-h-screen flex items-center justify-center bg-gray-100">
-          <ClipLoader size={40} color="#000" />
-        </div>
-      ) : error ? (
-        <div className="min-h-screen flex items-center justify-center bg-gray-100">
-          <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-            <h2 className="text-2xl font-bold text-black mb-4 text-center">Ошибка</h2>
-            <p className="text-red-600 text-center">{error}</p>
+      
+      {/* Стартовый экран перед запуском просмотра */}
+      {!viewStarted ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-70 z-10">
+          <div className="text-center text-white p-6 max-w-md bg-gray-800 bg-opacity-80 rounded-lg border border-yellow-500">
+            <h2 className="text-2xl font-bold mb-6">Сундук с сокровищами</h2>
+            <div className="mb-8">
+              {ticket.is_win ? (
+                <div className="text-center">
+                  <div className="text-5xl mb-2">💰</div>
+                  <p className="text-xl text-yellow-400 font-bold">
+                    Поздравляем! Вы выиграли {ticket.win_amount} ₽
+                  </p>
+                </div>
+              ) : (
+                <div className="text-center">
+                  <div className="text-5xl mb-2">📦</div>
+                  <p className="text-xl text-gray-300">К сожалению, вы не выиграли в этот раз</p>
+                </div>
+              )}
+            </div>
+            
+            <div className="mb-4 p-3 bg-blue-800 bg-opacity-40 rounded-lg text-sm">
+              <p className="text-blue-200 mb-2">
+                Устройство: {deviceInfo}
+              </p>
+              <p className="text-green-300">
+                {arSupported 
+                  ? "Поддержка AR: Да! Вы сможете разместить виртуальный сундук в реальном мире."
+                  : "Поддержка AR: Нет. Будет использован 3D-режим."}
+              </p>
+            </div>
+            
+            <p className="mb-6">
+              {arSupported 
+                ? "Нажмите кнопку, чтобы перейти в режим дополненной реальности. Найдите плоскую поверхность и нажмите на нее, чтобы разместить сундук."
+                : "Нажмите кнопку, чтобы увидеть результат вашей лотереи в виде 3D сундука с сокровищами!"}
+            </p>
             <button
-              onClick={() => navigate("/dashboard")}
-              className="mt-4 w-full py-2 px-4 bg-yellow-500 text-black font-semibold rounded-md hover:bg-yellow-600"
+              onClick={handleStartView}
+              className={`w-full px-6 py-3 font-bold rounded-lg transition-colors duration-300 text-lg ${
+                arSupported 
+                  ? "bg-green-500 text-white hover:bg-green-600" 
+                  : "bg-yellow-500 text-black hover:bg-yellow-600"
+              }`}
             >
-              Вернуться на главную
+              {arSupported ? "Запустить AR" : "Открыть 3D просмотр"}
             </button>
-          </div>
-        </div>
-      ) : !ticket ? (
-        <div className="min-h-screen flex items-center justify-center bg-gray-100">
-          <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-            <h2 className="text-2xl font-bold text-black mb-4 text-center">Билет не найден</h2>
-            <p className="text-gray-700 text-center">Билет AR лотереи не найден или был удален.</p>
-            <button
-              onClick={() => navigate("/dashboard")}
-              className="mt-4 w-full py-2 px-4 bg-yellow-500 text-black font-semibold rounded-md hover:bg-yellow-600"
-            >
-              Вернуться на главную
-            </button>
+            <p className="mt-4 text-sm opacity-80">
+              {arSupported 
+                ? "В режиме AR вы сможете перемещаться вокруг объекта" 
+                : "Вы сможете вращать сундук касанием или мышью"}
+            </p>
           </div>
         </div>
       ) : (
-        <>
-          {!viewStarted ? (
-            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-70 z-10">
-              <div className="text-center text-white p-6 max-w-md bg-gray-800 bg-opacity-80 rounded-lg border border-yellow-500">
-                <h2 className="text-2xl font-bold mb-6">Сундук с сокровищами</h2>
-                <div className="mb-8">
-                  {ticket.is_win ? (
-                    <div className="text-center">
-                      <div className="text-5xl mb-2">💰</div>
-                      <p className="text-xl text-yellow-400 font-bold">
-                        Поздравляем! Вы выиграли {ticket.win_amount} ₽
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="text-center">
-                      <div className="text-5xl mb-2">📦</div>
-                      <p className="text-xl text-gray-300">К сожалению, вы не выиграли в этот раз</p>
-                    </div>
-                  )}
-                </div>
-                <div className="mb-4 p-3 bg-blue-800 bg-opacity-40 rounded-lg text-sm">
-                  <p className="text-blue-200 mb-2">
-                    Устройство: {deviceInfo}
-                  </p>
-                  <p className="text-green-300">
-                    {arSupported
-                      ? "Поддержка AR: Да! Вы сможете разместить виртуальный сундук в реальном мире."
-                      : "Поддержка AR: Нет. Будет использован 3D-режим."}
-                  </p>
-                </div>
-                <p className="mb-6">
-                  {arSupported
-                    ? "Нажмите кнопку, чтобы перейти в режим дополненной реальности. Найдите плоскую поверхность и нажмите на нее, чтобы разместить сундук."
-                    : "Нажмите кнопку, чтобы увидеть результат вашей лотереи в виде 3D сундука с сокровищами!"}
-                </p>
-                <button
-                  onClick={handleStartView}
-                  className={`w-full px-6 py-3 font-bold rounded-lg transition-colors duration-300 text-lg ${
-                    arSupported
-                      ? "bg-green-500 text-white hover:bg-green-600"
-                      : "bg-yellow-500 text-black hover:bg-yellow-600"
-                  }`}
-                >
-                  {arSupported ? "Запустить AR" : "Открыть 3D просмотр"}
-                </button>
-                <p className="mt-4 text-sm opacity-80">
-                  {arSupported
-                    ? "В режиме AR вы сможете перемещаться вокруг объекта"
-                    : "Вы сможете вращать сундук касанием или мышью"}
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div
-              className="absolute bottom-24 left-0 right-0 p-6 bg-black bg-opacity-70 text-white z-30"
+        // Панель с информацией после запуска просмотра
+        <div
+          className="absolute bottom-24 left-0 right-0 p-6 bg-black bg-opacity-70 text-white z-30"
+          style={{ pointerEvents: "auto" }}
+        >
+          <div className="text-center">
+            <h2 className="text-xl font-bold mb-4">
+              {ticket.is_win
+                ? `Поздравляем! Вы выиграли ${ticket.win_amount} ₽`
+                : "К сожалению, сундук оказался пуст"}
+            </h2>
+            <button
+              onClick={() => navigate("/dashboard")}
+              className="px-8 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 text-lg"
               style={{ pointerEvents: "auto" }}
             >
-              <div className="text-center">
-                <h2 className="text-xl font-bold mb-4">
-                  {ticket.is_win
-                    ? `Поздравляем! Вы выиграли ${ticket.win_amount} ₽`
-                    : "К сожалению, сундук оказался пуст"}
-                </h2>
-                <button
-                  onClick={() => navigate("/dashboard")}
-                  className="px-8 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 text-lg"
-                  style={{ pointerEvents: "auto" }}
-                >
-                  Вернуться на главную
-                </button>
-              </div>
+              Вернуться на главную
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* AR-инструкции для пользователя */}
+      {viewStarted && arSupported && !modelPlaced.current && (
+        <div className="absolute top-0 left-0 right-0 p-4 bg-black bg-opacity-50 text-white z-40 text-center">
+          <p className="font-bold mb-1">Найдите плоскую поверхность</p>
+          <p className="text-sm">Наведите камеру на пол или стол и нажмите, чтобы разместить сундук</p>
+        </div>
+      )}
+      
+      {/* Логи для отладки */}
+      {debugMode && (
+        <div
+          className="absolute top-4 left-4 right-4 bg-black bg-opacity-50 text-white p-2 max-h-40 overflow-y-auto z-40"
+          style={{ display: "block", fontSize: "10px" }}
+        >
+          <div className="flex justify-between items-center mb-1">
+            <span className="text-xs font-bold">Отладка</span>
+            <div>
+              <span className="text-xs mr-2">Устройство: {deviceInfo}</span>
+              <button 
+                onClick={() => setDebugMode(false)} 
+                className="text-xs bg-red-500 px-2 rounded"
+              >
+                Скрыть
+              </button>
             </div>
-          )}
-          {viewStarted && arSupported && !modelPlaced.current && (
-            <div className="absolute top-0 left-0 right-0 p-4 bg-black bg-opacity-50 text-white z-40 text-center">
-              <p className="font-bold mb-1">Найдите плоскую поверхность</p>
-              <p className="text-sm">Наведите камеру на пол или стол и нажмите, чтобы разместить сундук</p>
-            </div>
-          )}
-          {debugMode && (
-            <div
-              className="absolute top-4 left-4 right-4 bg-black bg-opacity-50 text-white p-2 max-h-40 overflow-y-auto z-40"
-              style={{ display: "block", fontSize: "10px" }}
-            >
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-xs font-bold">Отладка</span>
-                <div>
-                  <span className="text-xs mr-2">Устройство: {deviceInfo}</span>
-                  <button
-                    onClick={() => setDebugMode(false)}
-                    className="text-xs bg-red-500 px-2 rounded"
-                  >
-                    Скрыть
-                  </button>
-                </div>
-              </div>
-              {logs.map((log, index) => (
-                <p key={index} className="text-xs">
-                  {log}
-                </p>
-              ))}
-            </div>
-          )}
-        </>
+          </div>
+          {logs.map((log, index) => (
+            <p key={index} className="text-xs">
+              {log}
+            </p>
+          ))}
+        </div>
       )}
     </div>
   );
