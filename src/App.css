@@ -1,88 +1,74 @@
-/* App.css - Modified to fix white margin issues */
+/* App.css - Минимальный код для AR функциональности */
 .App {
   text-align: center;
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
+/* Отключаем градиентный фон при активной AR сессии */
+body.ar-active #root,
+body.ar-active .App,
+body.ar-active main,
+body.ar-active .min-h-screen {
+  background: transparent !important;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
+/* Важно: убираем все фоны на время AR-сессии */
+.ar-active * {
+  background-color: transparent !important;
+  background-image: none !important;
 }
 
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+/* Стили для canvas WebXR */
+.ar-container canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1000;
+  background: transparent !important;
 }
 
-.App-link {
-  color: #61dafb;
+/* Стили для UI-элементов в AR режиме */
+.ar-overlay {
+  position: fixed;
+  z-index: 1001;
+  pointer-events: auto;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+/* Контейнер для AR */
+.ar-page {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  z-index: 999;
 }
 
-/* Fix for white margin issues */
-body, html {
+/* Отключаем ненужные фоны */
+body, html, #root {
   margin: 0;
   padding: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(to bottom, #663399, #5B21B6);
-  overflow-x: hidden;
-  box-sizing: border-box;
 }
 
-/* Make sure all full-height containers truly go edge to edge */
-.min-h-screen {
-  min-height: 100vh;
-  width: 100%;
-  overflow-x: hidden;
-  margin: 0;
-  padding: 0;
+/* Исправление для App-header и других элементов */
+.App-header {
+  background-color: transparent !important;
+  color: white;
 }
 
-/* Add this for consistent gradient background across the site */
-#root {
-  min-height: 100vh;
-  width: 100%;
-  background: linear-gradient(to bottom, #663399, #5B21B6);
-}
-
-/* Ensures the content expands properly */
-.max-w-4xl, .max-w-5xl, .max-w-6xl, .max-w-7xl {
-  width: 100%;
-  max-width: 100%;
-  padding-left: 1rem;
-  padding-right: 1rem;
-  box-sizing: border-box;
-}
-
-@media (min-width: 1024px) {
-  .max-w-4xl, .max-w-5xl, .max-w-6xl, .max-w-7xl {
-    padding-left: 2rem;
-    padding-right: 2rem;
-  }
-}
-
-/* Fix for the LotteryList component's background */
-.bg-gradient-to-b {
-  background-size: 100% 100%;
-  background-attachment: fixed;
+/* Специфический фикс для AR сцены */
+.ar-session-active {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: transparent !important;
+  z-index: 1000;
 }
