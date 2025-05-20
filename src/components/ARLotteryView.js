@@ -16,6 +16,7 @@ const ARLotteryView = () => {
   const [ticket, setTicket] = useState(null);
   const [arStarted, setArStarted] = useState(false);
   const [isWebXRSupported, setIsWebXRSupported] = useState(null);
+  const [arSupported, setArSupported] = useState(null); // Добавлен состояние для arSupported
   const [isIOS, setIsIOS] = useState(false);
   const [logs, setLogs] = useState([]);
   const [is3DMode, setIs3DMode] = useState(false);
@@ -67,6 +68,7 @@ const ARLotteryView = () => {
       if (typeof navigator.xr === 'undefined') {
         addLog("WebXR API не доступен в этом браузере");
         setIsWebXRSupported(false);
+        setArSupported(false); // Устанавливаем arSupported в false
         return;
       }
       
@@ -74,9 +76,17 @@ const ARLotteryView = () => {
         const isSupported = await navigator.xr.isSessionSupported("immersive-ar");
         addLog(`WebXR AR поддерживается: ${isSupported}`);
         setIsWebXRSupported(isSupported);
+        setArSupported(isSupported); // Устанавливаем arSupported в соответствии с поддержкой WebXR
       } catch (err) {
         addLog(`Ошибка при проверке поддержки WebXR: ${err.message}`);
         setIsWebXRSupported(false);
+        setArSupported(false); // Устанавливаем arSupported в false в случае ошибки
+        
+        // Если это Safari на iOS, считаем что AR поддерживается через Quick Look
+        if (isIOSDevice && navigator.userAgent.includes("Safari")) {
+          addLog("iOS Safari: предполагаем поддержку AR Quick Look");
+          setArSupported(true); // iOS Safari может поддерживать AR через QuickLook
+        }
       }
     };
     
@@ -136,25 +146,6 @@ const ARLotteryView = () => {
     }
   };
 
-
-  const isInEmulator = new URLSearchParams(window.location.search).has('emulator');
-
-    if (isInEmulator) {
-      // Принудительно включаем AR режим для эмулятора
-      setArSupported(true);
-      setIsWebXRSupported(true);
-      console.log("Запуск в режиме эмуляции WebXR");
-  
-  // В функции initAR можно добавить:
-      if (isInEmulator) {
-    // Пропускаем проверки поддержки AR
-    // И устанавливаем начальное положение объекта для лучшей видимости в эмуляторе
-        if (objectRef.current) {
-          objectRef.current.position.set(0, 0, -1);
-          objectRef.current.visible = true;
-        }
-      }
-    }
   // Загрузка звуковых эффектов
   const loadSounds = (scene) => {
     if (!listener.current) {
@@ -426,8 +417,8 @@ const ARLotteryView = () => {
     }
     
     // Проверка поддержки WebXR
-    if (!isWebXRSupported || isIOS) {
-      addLog(`Режим AR не поддерживается, запускаем 3D режим (WebXR: ${isWebXRSupported}, iOS: ${isIOS})`);
+    if (!isWebXRSupported && !arSupported && !isIOS) {
+      addLog(`Режим AR не поддерживается, запускаем 3D режим (WebXR: ${isWebXRSupported}, arSupported: ${arSupported}, iOS: ${isIOS})`);
       init3DMode();
       return;
     }
@@ -1128,12 +1119,15 @@ const ARLotteryView = () => {
         >
           <div className="flex justify-between items-center mb-1">
             <span className="text-xs font-bold">Журнал отладки</span>
-            <button 
-              onClick={() => setDebugMode(false)} 
-              className="text-xs bg-red-500 px-2 rounded"
-            >
-              Скрыть
-            </button>
+            <div>
+              <span className="text-xs mr-2">AR поддержка: {arSupported ? "Да" : "Нет"}</span>
+              <button 
+                onClick={() => setDebugMode(false)} 
+                className="text-xs bg-red-500 px-2 rounded"
+              >
+                Скрыть
+              </button>
+            </div>
           </div>
           {logs.map((log, index) => (
             <p key={index} className="text-xs">
