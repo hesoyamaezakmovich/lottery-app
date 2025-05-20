@@ -8,3 +8,32 @@ body {
   padding: 0;
   box-sizing: border-box;
 }
+
+/* Анимация для медленного движения фона */
+@keyframes slow-move {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 100% 100%;
+  }
+}
+
+.animate-slow-move {
+  animation: slow-move 20s linear infinite;
+}
+
+/* Улучшение шрифтов и теней для текста */
+h3 {
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+p {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Улучшение кнопок */
+button {
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
