@@ -48,7 +48,7 @@ const ARLotteryCard = ({ onPlay }) => {
         
         <div className="text-white text-sm text-center mb-4 flex items-center justify-center">
           <span className="mr-2">📱</span>
-          <p>Сканируйте QR-код и увидите свой выигрыш в AR!</p>
+          <p>Разместите виртуальный сундук в реальном мире через AR!</p>
         </div>
         
         <motion.button

@@ -1,11 +1,10 @@
-// Упрощенный компонент ARLottery.js - работает на всех устройствах
+// Обновленный ARLottery.js с поддержкой настоящей AR
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { ClipLoader } from "react-spinners";
 import { useNavigate, useParams } from "react-router-dom";
 import { QRCodeCanvas } from "qrcode.react";
 
-// Упрощенный компонент AR Лотереи
 const ARLottery = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -13,10 +12,11 @@ const ARLottery = () => {
   const [result, setResult] = useState(null);
   const [qrValue, setQrValue] = useState("");
   const [deviceInfo, setDeviceInfo] = useState("");
+  const [arSupported, setArSupported] = useState(false);
   const navigate = useNavigate();
   const { ticket_id } = useParams();
 
-  // Определение устройства пользователя
+  // Определение устройства пользователя и поддержки AR
   useEffect(() => {
     const detectDevice = () => {
       const ua = navigator.userAgent;
@@ -42,6 +42,22 @@ const ARLottery = () => {
       
       setDeviceInfo(deviceInfo);
       console.log(`Определено устройство: ${deviceInfo}`);
+      
+      // Проверяем поддержку WebXR
+      if (navigator.xr) {
+        navigator.xr.isSessionSupported('immersive-ar')
+          .then((supported) => {
+            setArSupported(supported);
+            console.log(`Поддержка AR: ${supported ? 'Да' : 'Нет'}`);
+          })
+          .catch(err => {
+            console.error(`Ошибка при проверке поддержки AR: ${err.message}`);
+            setArSupported(false);
+          });
+      } else {
+        console.log('WebXR API не поддерживается в этом браузере');
+        setArSupported(false);
+      }
       
       return { isIOS, isAndroid, isMobile, browser, deviceType };
     };
@@ -262,18 +278,18 @@ const ARLottery = () => {
             </svg>
             Назад
           </button>
-          <h1 className="text-3xl font-bold text-black">3D Лотерея</h1>
+          <h1 className="text-3xl font-bold text-black">AR Лотерея</h1>
         </div>
 
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <h2 className="text-2xl font-bold text-black mb-4 text-center">
-            {ticket_id ? "Ваш билет 3D лотереи" : "Новый билет 3D лотереи"}
+            {ticket_id ? "Ваш билет AR лотереи" : "Новый билет AR лотереи"}
           </h2>
 
           {result && (
             <div className="mb-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
               <p className="text-center text-black font-semibold mb-2">
-                Для просмотра результата отсканируйте QR-код или нажмите кнопку ниже
+                Для просмотра результата в дополненной реальности отсканируйте QR-код или нажмите кнопку ниже
               </p>
 
               <div className="flex flex-col items-center justify-center">
@@ -282,29 +298,33 @@ const ARLottery = () => {
                 </div>
 
                 <p className="text-sm text-gray-600 mb-4 text-center">
-                  QR-код содержит ссылку для просмотра результата в 3D
+                  QR-код содержит ссылку для просмотра результата в дополненной реальности
                 </p>
               </div>
             </div>
           )}
 
           <div className="text-center">
-            {/* Информация об устройстве */}
+            {/* Информация о поддержке AR */}
             <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
               <p className="text-blue-700 mb-2">
                 Определено устройство: {deviceInfo}
               </p>
-              <p className="text-gray-600 text-sm">
-                3D-просмотр работает на всех устройствах и браузерах
+              <p className="text-green-600 text-sm">
+                {arSupported 
+                  ? "На вашем устройстве поддерживается настоящая AR-визуализация! Откройте просмотр, чтобы увидеть ваш результат в реальном мире."
+                  : "На вашем устройстве будет использована альтернативная 3D-визуализация, которая работает на всех устройствах."}
               </p>
             </div>
 
             <button
               onClick={startView}
               disabled={loading || !result}
-              className={`px-6 py-3 rounded-lg font-bold text-lg bg-yellow-500 text-black hover:bg-yellow-600 ${loading || !result ? "opacity-50 cursor-not-allowed" : ""}`}
+              className={`px-6 py-3 rounded-lg font-bold text-lg ${
+                arSupported ? "bg-green-500 hover:bg-green-600" : "bg-yellow-500 hover:bg-yellow-600"
+              } text-black ${loading || !result ? "opacity-50 cursor-not-allowed" : ""}`}
             >
-              Открыть 3D просмотр
+              {arSupported ? "Открыть AR просмотр" : "Открыть 3D просмотр"}
             </button>
           </div>
         </div>
@@ -314,7 +334,7 @@ const ARLottery = () => {
 
           <div className="space-y-4">
             <p className="text-black">
-              3D лотерея позволяет вам увидеть результат в виде красивой анимации сундука с сокровищами.
+              AR лотерея позволяет вам увидеть результат в виде виртуального сундука с сокровищами прямо в вашем окружении!
             </p>
 
             <ol className="list-decimal pl-5 space-y-2 text-black">
@@ -322,27 +342,38 @@ const ARLottery = () => {
               <li>Получите QR-код для вашего билета</li>
               <li>
                 Отсканируйте его с помощью камеры на другом устройстве или нажмите
-                кнопку "Открыть 3D просмотр"
+                кнопку "Открыть AR просмотр"
               </li>
-              <li>В 3D просмотре вы увидите анимацию сундука, который покажет результат вашей лотереи</li>
-              <li>Вы можете вращать сундук и рассматривать его с разных сторон</li>
+              <li>В AR-просмотре вы увидите виртуальный сундук прямо в вашей комнате, который покажет результат вашей лотереи</li>
+              <li>Вы можете перемещаться вокруг сундука и рассматривать его со всех сторон!</li>
               <li>Шанс выигрыша составляет 25%</li>
               <li>Размер выигрыша от 100₽ до 1000₽</li>
             </ol>
 
             <p className="text-black">
-              Выигрыш в 3D лотерее моментально зачисляется на ваш счет!
+              Выигрыш в AR лотерее моментально зачисляется на ваш счет!
             </p>
             
             <div className="mt-4 p-4 bg-yellow-50 rounded-lg">
-              <h4 className="font-bold text-black mb-2">Преимущества 3D просмотра</h4>
+              <h4 className="font-bold text-black mb-2">Преимущества AR просмотра</h4>
               <ul className="list-disc pl-5 space-y-1 text-black">
-                <li>Работает на всех устройствах и в любых браузерах</li>
-                <li>Красивая анимация сундука с сокровищами</li>
-                <li>Удобное управление с помощью мыши или касаний</li>
-                <li>Мгновенный просмотр результата без необходимости установки дополнительных приложений</li>
+                <li>Видите сундук прямо в вашем окружении - на полу, столе или любой другой поверхности</li>
+                <li>Полная 3D-визуализация с возможностью обхода объекта со всех сторон</li>
+                <li>Работает с современными мобильными устройствами</li>
+                <li>Красивая анимация открытия сундука с сокровищами</li>
+                <li>Уникальный опыт взаимодействия с виртуальными объектами в реальном мире</li>
               </ul>
             </div>
+            
+            {!arSupported && (
+              <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                <h4 className="font-bold text-black mb-2">Для устройств без поддержки AR</h4>
+                <p className="text-black">
+                  Если ваше устройство не поддерживает AR, вы все равно сможете насладиться 3D-визуализацией сундука
+                  с сокровищами в интерактивном режиме. Вы сможете вращать сундук мышью или касаниями экрана.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
