@@ -1,4 +1,3 @@
-// src/components/ARLotteryView.js
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
@@ -125,8 +124,8 @@ const ARLotteryView = () => {
     }
 
     const soundsToLoad = {
-      chestOpen: { url: '/sounds/chest_open.mp3', volume: 1.0 },
-      chestClose: { url: '/sounds/chest_close.mp3', volume: 0.8 },
+      chestOpen: { url: "/sounds/chest_open.mp3", volume: 1.0 },
+      chestClose: { url: "/sounds/chest_close.mp3", volume: 0.8 },
     };
 
     Object.entries(soundsToLoad).forEach(([key, { url, volume }]) => {
@@ -174,43 +173,38 @@ const ARLotteryView = () => {
   const playSpecificAnimation = (animationName, isWin) => {
     if (mixerRef.current && objectRef.current) {
       try {
-        // Сначала воспроизводим звук, чтобы он точно сработал
+        // Сначала воспроизводим звук
         playSound(isWin ? "chestOpen" : "chestClose");
-        
+
         // Проверяем наличие анимаций
         const animations = {};
         let hasAnimations = false;
-        
+
         if (objectRef.current.animations && objectRef.current.animations.length > 0) {
           objectRef.current.animations.forEach((clip) => {
             animations[clip.name] = mixerRef.current.clipAction(clip);
             hasAnimations = true;
           });
-          addLog(`Найдены анимации объекта: ${Object.keys(animations).join(', ')}`);
-        } 
-        
+          addLog(`Найдены анимации объекта: ${Object.keys(animations).join(", ")}`);
+        }
+
         if (mixerRef.current._root && mixerRef.current._root.animations && mixerRef.current._root.animations.length > 0) {
           mixerRef.current._root.animations.forEach((clip) => {
             animations[clip.name] = mixerRef.current.clipAction(clip);
             hasAnimations = true;
           });
-          addLog(`Найдены анимации в миксере: ${Object.keys(animations).join(', ')}`);
+          addLog(`Найдены анимации в миксере: ${Object.keys(animations).join(", ")}`);
         }
-        
+
         if (!hasAnimations) {
-          // Если нет анимаций, сделаем простую анимацию открытия сундука
           addLog("Анимации не найдены, применяется простая анимация");
-          
           // Простая анимация открытия крышки для сундука
           if (objectRef.current.children && objectRef.current.children.length > 1) {
-            const lid = objectRef.current.children[1]; // Предполагаем, что крышка - второй элемент
-            
-            // Анимация открытия крышки
+            const lid = objectRef.current.children[1];
             const startRotation = lid.rotation.x;
-            const targetRotation = -Math.PI / 2; // -90 градусов
+            const targetRotation = -Math.PI / 2;
             const steps = 30;
             let currentStep = 0;
-            
             const animateLid = () => {
               if (currentStep < steps) {
                 lid.rotation.x = startRotation + (targetRotation - startRotation) * (currentStep / steps);
@@ -218,15 +212,12 @@ const ARLotteryView = () => {
                 requestAnimationFrame(animateLid);
               }
             };
-            
             animateLid();
           } else {
-            // Если нет детей для анимации, просто поворачиваем весь объект
             const startRotation = { x: objectRef.current.rotation.x, y: objectRef.current.rotation.y };
             const targetRotation = { x: isWin ? Math.PI / 6 : -Math.PI / 6, y: startRotation.y + Math.PI };
             const steps = 30;
             let currentStep = 0;
-            
             const animateObject = () => {
               if (currentStep < steps) {
                 objectRef.current.rotation.x = startRotation.x + (targetRotation.x - startRotation.x) * (currentStep / steps);
@@ -235,27 +226,20 @@ const ARLotteryView = () => {
                 requestAnimationFrame(animateObject);
               }
             };
-            
             animateObject();
           }
-          
           setAnimationPlayed(true);
           return;
         }
-        
+
         // Если анимации найдены, пытаемся найти нужную
         let actionToPlay;
-        
-        // Ищем подходящую анимацию
         const animationNames = Object.keys(animations);
-        addLog(`Доступные анимации: ${animationNames.join(', ')}`);
-        
-        // Попытка найти специфичную анимацию
+        addLog(`Доступные анимации: ${animationNames.join(", ")}`);
+
         if (isWin) {
           for (const name of animationNames) {
-            if (name.toLowerCase().includes('open') || 
-                name.toLowerCase().includes('chest') || 
-                name.toLowerCase().includes('win')) {
+            if (name.toLowerCase().includes("open") || name.toLowerCase().includes("chest") || name.toLowerCase().includes("win")) {
               actionToPlay = animations[name];
               addLog(`Выбрана анимация выигрыша: ${name}`);
               break;
@@ -263,34 +247,27 @@ const ARLotteryView = () => {
           }
         } else {
           for (const name of animationNames) {
-            if (name.toLowerCase().includes('close') || 
-                name.toLowerCase().includes('handle') || 
-                name.toLowerCase().includes('lose')) {
+            if (name.toLowerCase().includes("close") || name.toLowerCase().includes("handle") || name.toLowerCase().includes("lose")) {
               actionToPlay = animations[name];
               addLog(`Выбрана анимация проигрыша: ${name}`);
               break;
             }
           }
         }
-        
-        // Если не нашли подходящую анимацию, используем первую доступную
+
         if (!actionToPlay && animationNames.length > 0) {
           actionToPlay = animations[animationNames[0]];
           addLog(`Используется первая доступная анимация: ${animationNames[0]}`);
         }
-        
+
         if (actionToPlay) {
-          // Останавливаем все текущие анимации
           Object.values(animations).forEach((action) => {
             if (action.isRunning()) action.stop();
           });
-          
-          // Настраиваем и запускаем анимацию
           actionToPlay.setLoop(THREE.LoopOnce);
           actionToPlay.clampWhenFinished = true;
           actionToPlay.reset().play();
           addLog(`Запущена анимация: ${actionToPlay._clip.name}`);
-          
           setAnimationPlayed(true);
         } else {
           addLog("Подходящая анимация не найдена");
@@ -303,14 +280,155 @@ const ARLotteryView = () => {
       }
     } else {
       addLog("Миксер или объект не инициализированы");
-      // Воспроизводим звук в любом случае
       playSound(isWin ? "chestOpen" : "chestClose");
       setAnimationPlayed(true);
     }
   };
 
+  // Инициализация AR режима
+  const initAR = async () => {
+    if (!ticket) {
+      addLog("Билет не загружен, невозможно инициализировать AR");
+      setError("Билет не найден");
+      return;
+    }
+
+    addLog("Инициализация AR режима");
+    if (!isWebXRSupported || isIOS) {
+      addLog("WebXR не поддерживается или устройство iOS, запуск 3D режима");
+      init3DMode();
+      return;
+    }
+
+    try {
+      const scene = new THREE.Scene();
+      sceneRef.current = scene;
+      const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+      cameraRef.current = camera;
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setClearColor(0x000000, 0);
+      renderer.xr.enabled = true;
+      rendererRef.current = renderer;
+      if (containerRef.current) {
+        containerRef.current.appendChild(renderer.domElement);
+        addLog("Рендерер для AR инициализирован");
+      } else {
+        addLog("Контейнер не найден");
+        throw new Error("Контейнер не найден");
+      }
+
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+      scene.add(ambientLight);
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+      directionalLight.position.set(0, 1, 1);
+      scene.add(directionalLight);
+
+      loadSounds(scene);
+      activateAudioContext();
+
+      const loader = new GLTFLoader();
+      const chestModelPath = ticket.is_win ? "/models/treasure_chest_win.glb" : "/models/treasure_chest_lose.glb";
+
+      loader.load(
+        chestModelPath,
+        (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(0.15, 0.15, 0.15);
+          model.visible = false;
+          scene.add(model);
+          objectRef.current = model;
+          addLog("Модель сундука загружена для AR");
+
+          if (gltf.animations && gltf.animations.length > 0) {
+            mixerRef.current = new THREE.AnimationMixer(model);
+            gltf.animations.forEach((clip) => {
+              const action = mixerRef.current.clipAction(clip);
+              action.clampWhenFinished = true;
+              addLog(`Анимация для AR: ${clip.name}`);
+            });
+          } else {
+            addLog("Анимации не найдены в модели для AR");
+          }
+        },
+        (progress) => {
+          if (progress.total > 0) {
+            const percent = Math.round((progress.loaded / progress.total) * 100);
+            addLog(`Загрузка модели для AR: ${percent}%`);
+          }
+        },
+        (err) => {
+          addLog(`Ошибка загрузки модели для AR: ${err.message}`);
+          const boxGeometry = new THREE.BoxGeometry(0.2, 0.15, 0.2);
+          const boxMaterial = new THREE.MeshStandardMaterial({
+            color: ticket.is_win ? 0xffd700 : 0x8b4513,
+          });
+          const box = new THREE.Mesh(boxGeometry, boxMaterial);
+          box.visible = false;
+          scene.add(box);
+          objectRef.current = box;
+          addLog("Создан резервный сундук для AR");
+        }
+      );
+
+      try {
+        const button = ARButton.createButton(renderer, {
+          requiredFeatures: ["hit-test"],
+          optionalFeatures: ["dom-overlay"],
+          domOverlay: { root: document.body },
+        });
+        document.body.appendChild(button);
+
+        renderer.xr.addEventListener("sessionstart", () => {
+          addLog("WebXR сессия начата");
+          activateAudioContext();
+          hitTestSourceRequested.current = false;
+          renderer.setAnimationLoop(onXRFrame);
+
+          setTimeout(() => {
+            if (objectRef.current && !objectRef.current.visible) {
+              addLog("Hit-test не сработал, размещение сундука по умолчанию");
+              objectRef.current.position.set(0, 0, -1.0);
+              objectRef.current.scale.set(0.08, 0.08, 0.08);
+              objectRef.current.rotation.set(0, 0, 0);
+              objectRef.current.visible = true;
+              playSpecificAnimation(null, ticket.is_win);
+            }
+          }, 3000);
+        });
+
+        renderer.xr.addEventListener("sessionend", () => {
+          addLog("WebXR сессия завершена");
+          renderer.setAnimationLoop(null);
+          setArStarted(false);
+          if (hitTestSource.current) {
+            hitTestSource.current.cancel();
+            hitTestSource.current = null;
+          }
+        });
+      } catch (err) {
+        addLog(`Ошибка создания AR кнопки: ${err.message}`);
+        init3DMode();
+        return;
+      }
+
+      setArStarted(true);
+    } catch (err) {
+      addLog(`Ошибка инициализации AR: ${err.message}`);
+      setError(`Не удалось запустить AR: ${err.message}`);
+      init3DMode();
+    }
+  };
+
   // Инициализация 3D режима
   const init3DMode = async () => {
+    if (!ticket) {
+      addLog("Билет не загружен, невозможно инициализировать 3D режим");
+      setError("Билет не найден");
+      return;
+    }
+
     addLog("Инициализация 3D режима");
     try {
       const scene = new THREE.Scene();
@@ -328,8 +446,13 @@ const ARLotteryView = () => {
       renderer.outputEncoding = THREE.sRGBEncoding;
       renderer.xr.enabled = isWebXRSupported;
       rendererRef.current = renderer;
-      containerRef.current.appendChild(renderer.domElement);
-      addLog("Рендерер инициализирован");
+      if (containerRef.current) {
+        containerRef.current.appendChild(renderer.domElement);
+        addLog("Рендерер инициализирован");
+      } else {
+        addLog("Контейнер не найден");
+        throw new Error("Контейнер не найден");
+      }
 
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.target.set(0, 0, 0);
@@ -366,7 +489,7 @@ const ARLotteryView = () => {
       activateAudioContext();
 
       const loader = new GLTFLoader();
-      const chestModelPath = ticket?.is_win ? "/models/treasure_chest_win.glb" : "/models/treasure_chest_lose.glb";
+      const chestModelPath = ticket.is_win ? "/models/treasure_chest_win.glb" : "/models/treasure_chest_lose.glb";
 
       loader.load(
         chestModelPath,
@@ -381,9 +504,8 @@ const ARLotteryView = () => {
           }
 
           const model = gltf.scene;
-          // Еще сильнее уменьшаем размер модели
-          model.scale.set(0.08, 0.08, 0.08); // Было 0.5, делаем гораздо меньше
-          model.position.set(0, 0, -0.8); // Располагаем ближе к камере
+          model.scale.set(0.08, 0.08, 0.08);
+          model.position.set(0, 0, -0.8);
           model.rotation.y = Math.PI / 4;
           model.visible = true;
           scene.add(model);
@@ -393,7 +515,7 @@ const ARLotteryView = () => {
           if (gltf.animations && gltf.animations.length > 0) {
             mixerRef.current = new THREE.AnimationMixer(model);
             gltf.animations.forEach((clip) => {
-              mixerRef.current.clipAction(clip); // Добавляем действия анимации
+              mixerRef.current.clipAction(clip);
               addLog(`Анимация загружена: ${clip.name}`);
             });
             mixerRef.current.addEventListener("finished", (e) => {
@@ -402,27 +524,7 @@ const ARLotteryView = () => {
             playSpecificAnimation(null, ticket.is_win);
           } else {
             addLog("Анимации не найдены, используется статичная модель");
-            // Проверяем, были ли загружены звуки
-            if (!sounds.chestOpen || !sounds.chestOpen.buffer) {
-              addLog("Звуки не были загружены, повторная попытка");
-              // Создаем звуки вручную, если они не были загружены
-              const audioContext = THREE.AudioContext.getContext();
-              if (audioContext.state === "suspended") {
-                audioContext.resume();
-              }
-              
-              const listener = new THREE.AudioListener();
-              cameraRef.current.add(listener);
-              
-              const sound = new THREE.Audio(listener);
-              sound.setVolume(1.0);
-              
-              // Воспроизводим звук без буфера (создаст простой звук)
-              playSound(ticket.is_win ? "chestOpen" : "chestClose");
-            } else {
-              // Если звуки загружены, просто воспроизводим их
-              playSound(ticket.is_win ? "chestOpen" : "chestClose");
-            }
+            playSound(ticket.is_win ? "chestOpen" : "chestClose");
           }
         },
         (progress) => {
@@ -433,21 +535,21 @@ const ARLotteryView = () => {
         },
         (err) => {
           addLog(`Ошибка загрузки модели: ${err.message}`);
-          const boxGeometry = new THREE.BoxGeometry(0.3, 0.2, 0.3); // Уменьшаем размер запасного сундука
+          const boxGeometry = new THREE.BoxGeometry(0.3, 0.2, 0.3);
           const boxMaterial = new THREE.MeshStandardMaterial({
-            color: ticket?.is_win ? 0xffd700 : 0x8b4513,
+            color: ticket.is_win ? 0xffd700 : 0x8b4513,
             roughness: 0.7,
             metalness: 0.3,
           });
           const box = new THREE.Mesh(boxGeometry, boxMaterial);
-          const lidGeometry = new THREE.BoxGeometry(0.3, 0.1, 0.3); // Уменьшаем крышку
+          const lidGeometry = new THREE.BoxGeometry(0.3, 0.1, 0.3);
           const lidMaterial = new THREE.MeshStandardMaterial({
-            color: ticket?.is_win ? 0xffd700 : 0x8b4513,
+            color: ticket.is_win ? 0xffd700 : 0x8b4513,
             roughness: 0.7,
             metalness: 0.3,
           });
           const lid = new THREE.Mesh(lidGeometry, lidMaterial);
-          lid.position.y = 0.15; // Корректируем позицию крышки
+          lid.position.y = 0.15;
           const chest = new THREE.Group();
           chest.add(box);
           chest.add(lid);
@@ -456,7 +558,7 @@ const ARLotteryView = () => {
           scene.add(chest);
           objectRef.current = chest;
           addLog("Создан резервный сундук");
-          playSound(ticket.is_win ? "chestOpen" : "chestClose"); // Fallback на звук
+          playSound(ticket.is_win ? "chestOpen" : "chestClose");
         }
       );
 
@@ -472,7 +574,9 @@ const ARLotteryView = () => {
         if (objectRef.current && !mixerRef.current) {
           objectRef.current.rotation.y += 0.005;
         }
-        renderer.render(scene, camera);
+        if (rendererRef.current && sceneRef.current && cameraRef.current) {
+          rendererRef.current.render(sceneRef.current, cameraRef.current);
+        }
       };
 
       animate();
@@ -499,12 +603,12 @@ const ARLotteryView = () => {
 
   // Оптимизированный метод для hit-testing в AR
   const onXRFrame = (time, frame) => {
-    const session = frame.session;
     if (!cameraRef.current || !rendererRef.current || !sceneRef.current) return;
-    
-    // Запрашиваем hitTestSource только один раз
+
+    const session = frame.session;
+
     if (!hitTestSourceRequested.current) {
-      session.requestReferenceSpace('viewer').then((referenceSpace) => {
+      session.requestReferenceSpace("viewer").then((referenceSpace) => {
         session.requestHitTestSource({ space: referenceSpace }).then((source) => {
           hitTestSource.current = source;
         });
@@ -512,198 +616,57 @@ const ARLotteryView = () => {
       hitTestSourceRequested.current = true;
     }
 
-    // Обрабатываем результаты hit-test
     if (hitTestSource.current && objectRef.current && !objectRef.current.visible) {
       const hitTestResults = frame.getHitTestResults(hitTestSource.current);
-      
+
       if (hitTestResults.length > 0) {
         addLog(`Найдена поверхность: ${hitTestResults.length} результат(ов)`);
         const hit = hitTestResults[0];
         const referenceSpace = rendererRef.current.xr.getReferenceSpace();
         const pose = hit.getPose(referenceSpace);
-        
+
         if (pose) {
-          // Уменьшаем размер еще больше
-          objectRef.current.scale.set(0.1, 0.1, 0.1); // Сильно уменьшаем размер в AR-режиме
-          
-          // Размещаем объект на найденной поверхности
+          objectRef.current.scale.set(0.1, 0.1, 0.1);
           const matrix = new THREE.Matrix4().fromArray(pose.transform.matrix);
           const position = new THREE.Vector3().setFromMatrixPosition(matrix);
-          
-          // Устанавливаем сундук ПРЯМО на поверхность (без поднятия)
           objectRef.current.position.copy(position);
-          
-          // Направляем объект к камере
+
           const cameraPosition = new THREE.Vector3();
           cameraRef.current.getWorldPosition(cameraPosition);
           const direction = new THREE.Vector3().subVectors(cameraPosition, position).normalize();
-          direction.y = 0; // Обнуляем вертикальную составляющую для выравнивания по горизонтали
+          direction.y = 0;
           if (direction.length() > 0.001) {
             objectRef.current.lookAt(cameraPosition.x, position.y, cameraPosition.z);
           }
-          
+
           objectRef.current.visible = true;
           addLog(`Объект размещен: ${position.x.toFixed(2)}, ${position.y.toFixed(2)}, ${position.z.toFixed(2)}`);
-          
-          // Запускаем анимацию НЕМЕДЛЕННО, без задержки
           playSpecificAnimation(null, ticket.is_win);
-          
-          // Отписываемся от hit-test после размещения
           hitTestSource.current.cancel();
           hitTestSource.current = null;
         }
       }
     }
 
-    // Обновляем анимации
     if (mixerRef.current) {
       const delta = clock.current.getDelta();
       mixerRef.current.update(delta);
     }
-    
-    // Рендерим сцену
+
     rendererRef.current.render(sceneRef.current, cameraRef.current);
-  };
-
-  // Инициализация AR режима
-  const initAR = async () => {
-    addLog("Инициализация AR режима");
-    if (!isWebXRSupported || isIOS) {
-      addLog("WebXR не поддерживается, запуск 3D режима");
-      init3DMode();
-      return;
-    }
-
-    try {
-      const scene = new THREE.Scene();
-      sceneRef.current = scene;
-      const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
-      cameraRef.current = camera;
-      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-      renderer.setPixelRatio(window.devicePixelRatio);
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.setClearColor(0x000000, 0);
-      renderer.xr.enabled = true;
-      rendererRef.current = renderer;
-      containerRef.current.appendChild(renderer.domElement);
-      addLog("Рендерер для AR инициализирован");
-
-      // Улучшаем освещение
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); // Увеличиваем интенсивность
-      scene.add(ambientLight);
-      const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0); // Увеличиваем яркость
-      directionalLight.position.set(0, 1, 1);
-      scene.add(directionalLight);
-
-      loadSounds(scene);
-      activateAudioContext();
-
-      const loader = new GLTFLoader();
-      const chestModelPath = ticket?.is_win ? "/models/treasure_chest_win.glb" : "/models/treasure_chest_lose.glb";
-
-      loader.load(
-        chestModelPath,
-        (gltf) => {
-          const model = gltf.scene;
-          // Уменьшаем размер модели для AR
-          model.scale.set(0.15, 0.15, 0.15); // Еще меньше для AR
-          model.visible = false;
-          scene.add(model);
-          objectRef.current = model;
-          addLog("Модель сундука загружена для AR");
-          
-          if (gltf.animations && gltf.animations.length > 0) {
-            mixerRef.current = new THREE.AnimationMixer(model);
-            const animations = {};
-            gltf.animations.forEach((clip) => {
-              const action = mixerRef.current.clipAction(clip);
-              animations[clip.name] = action;
-              addLog(`Анимация для AR: ${clip.name}`);
-            });
-          } else {
-            addLog("Анимации не найдены в модели для AR");
-          }
-        },
-        (progress) => {
-          if (progress.total > 0) {
-            const percent = Math.round((progress.loaded / progress.total) * 100);
-            addLog(`Загрузка модели для AR: ${percent}%`);
-          }
-        },
-        (err) => {
-          addLog(`Ошибка загрузки модели для AR: ${err.message}`);
-          const boxGeometry = new THREE.BoxGeometry(0.2, 0.15, 0.2); // Уменьшенный размер для AR
-          const boxMaterial = new THREE.MeshStandardMaterial({
-            color: ticket?.is_win ? 0xffd700 : 0x8b4513,
-          });
-          const box = new THREE.Mesh(boxGeometry, boxMaterial);
-          box.visible = false;
-          scene.add(box);
-          objectRef.current = box;
-          addLog("Создан резервный сундук для AR");
-        }
-      );
-
-      try {
-        const button = ARButton.createButton(renderer, {
-          requiredFeatures: ["hit-test"],
-          optionalFeatures: ["dom-overlay"],
-          domOverlay: { root: document.body },
-        });
-        document.body.appendChild(button);
-
-        renderer.xr.addEventListener("sessionstart", () => {
-          addLog("WebXR сессия начата");
-          activateAudioContext();
-          hitTestSourceRequested.current = false;
-          
-          // Устанавливаем функцию отрисовки для XR
-          renderer.setAnimationLoop(onXRFrame);
-
-          // Fallback для случая, когда hit-test не работает
-          setTimeout(() => {
-            if (objectRef.current && !objectRef.current.visible) {
-              addLog("Hit-test не сработал, размещение сундука по умолчанию");
-              objectRef.current.position.set(0, 0, -1.0); // Прямо перед камерой
-              objectRef.current.scale.set(0.08, 0.08, 0.08); // Совсем маленький размер
-              objectRef.current.rotation.set(0, 0, 0); // Сброс вращения
-              objectRef.current.visible = true;
-              playSpecificAnimation(null, ticket.is_win);
-            }
-          }, 3000); // Уменьшаем тайм-аут до 3 секунд
-        });
-
-        renderer.xr.addEventListener("sessionend", () => {
-          addLog("WebXR сессия завершена");
-          renderer.setAnimationLoop(null);
-          setArStarted(false);
-          if (hitTestSource.current) {
-            hitTestSource.current.cancel();
-            hitTestSource.current = null;
-          }
-        });
-      } catch (err) {
-        addLog(`Ошибка создания AR кнопки: ${err.message}`);
-        init3DMode();
-        return;
-      }
-
-      setArStarted(true);
-    } catch (err) {
-      addLog(`Ошибка инициализации AR: ${err.message}`);
-      setError(`Не удалось запустить AR: ${err.message}`);
-      init3DMode();
-    }
   };
 
   // Очистка ресурсов
   useEffect(() => {
     return () => {
+      // Остановка всех звуков
       Object.values(sounds).forEach((sound) => {
         if (sound && sound.isPlaying) {
           sound.stop();
         }
       });
+
+      // Очистка рендерера
       if (rendererRef.current) {
         rendererRef.current.setAnimationLoop(null);
         rendererRef.current.dispose();
@@ -711,16 +674,43 @@ const ARLotteryView = () => {
           containerRef.current.removeChild(rendererRef.current.domElement);
         }
       }
+
+      // Удаление AR кнопки
       const arButton = document.querySelector("button.webxr-button");
       if (arButton) {
         arButton.remove();
       }
+
+      // Очистка hit-test
       if (hitTestSource.current) {
         hitTestSource.current.cancel();
         hitTestSource.current = null;
       }
+
+      // Очистка анимаций
+      if (mixerRef.current) {
+        mixerRef.current.stopAllAction();
+        mixerRef.current = null;
+      }
+
+      // Очистка сцены
+      if (sceneRef.current) {
+        sceneRef.current.traverse((object) => {
+          if (object.geometry) object.geometry.dispose();
+          if (object.material) {
+            if (Array.isArray(object.material)) {
+              object.material.forEach((mat) => mat.dispose());
+            } else {
+              object.material.dispose();
+            }
+          }
+        });
+        sceneRef.current = null;
+      }
+
+      addLog("Ресурсы очищены");
     };
-  }, []);
+  }, [sounds]);
 
   if (loading) {
     return (
@@ -755,7 +745,7 @@ const ARLotteryView = () => {
           <p className="text-gray-700 text-center">Билет AR лотереи не найден или был удален.</p>
           <button
             onClick={() => navigate("/dashboard")}
-            className="mt-4 w-full py-2 px-4 bg-yellow-500 text-black font-semibold rounded-md hover:bg-yellow-600"
+            className="mt-4 w-full py-2 px-4 Bg-yellow-500 text-black font-semibold rounded-md hover:bg-yellow-600"
           >
             Вернуться на главную
           </button>
@@ -826,7 +816,7 @@ const ARLotteryView = () => {
                     playSpecificAnimation(null, ticket.is_win);
                   } else {
                     addLog("Миксер анимаций не инициализирован");
-                    playSound(ticket.is_win ? "chestOpen" : "chestClose"); // Fallback на звук
+                    playSound(ticket.is_win ? "chestOpen" : "chestClose");
                     setAnimationPlayed(true);
                   }
                 }}
@@ -848,7 +838,7 @@ const ARLotteryView = () => {
       )}
       <div
         className="absolute top-4 left-4 right-4 bg-black bg-opacity-50 text-white p-2 max-h-40 overflow-y-auto z-20"
-        style={{ display: "block" }} // Показываем логи для отладки
+        style={{ display: "block" }}
       >
         {logs.map((log, index) => (
           <p key={index} className="text-xs">
