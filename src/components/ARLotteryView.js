@@ -173,18 +173,17 @@ const ARLotteryView = () => {
     if (!mixerRef.current || !objectRef.current) {
       addLog("Миксер или объект не инициализированы");
       playSound(isWin ? "chestOpen" : "chestClose");
+      if (objectRef.current) objectRef.current.visible = true; // Убедимся, что сундук виден
       setAnimationPlayed(true);
       return;
     }
-
+  
     try {
-      // Воспроизведение звука
       playSound(isWin ? "chestOpen" : "chestClose");
-
-      // Проверяем наличие анимаций
+  
       const animations = {};
       let hasAnimations = false;
-
+  
       if (objectRef.current.animations && objectRef.current.animations.length > 0) {
         objectRef.current.animations.forEach((clip) => {
           animations[clip.name] = mixerRef.current.clipAction(clip);
@@ -192,7 +191,7 @@ const ARLotteryView = () => {
         });
         addLog(`Найдены анимации объекта: ${Object.keys(animations).join(", ")}`);
       }
-
+  
       if (!hasAnimations && mixerRef.current._root && mixerRef.current._root.animations && mixerRef.current._root.animations.length > 0) {
         mixerRef.current._root.animations.forEach((clip) => {
           animations[clip.name] = mixerRef.current.clipAction(clip);
@@ -200,10 +199,45 @@ const ARLotteryView = () => {
         });
         addLog(`Найдены анимации в миксере: ${Object.keys(animations).join(", ")}`);
       }
-
-      if (!hasAnimations) {
+  
+      if (hasAnimations) {
+        const animationNames = Object.keys(animations);
+        let actionToPlay;
+  
+        if (isWin) {
+          actionToPlay = animationNames.find((name) => name.toLowerCase().includes("win"));
+          if (actionToPlay) {
+            actionToPlay = animations[actionToPlay];
+            addLog(`Выбрана анимация выигрыша: ${actionToPlay._clip.name}`);
+          }
+        } else {
+          actionToPlay = animationNames.find((name) => name.toLowerCase().includes("lose") || name.toLowerCase().includes("close"));
+          if (actionToPlay) {
+            actionToPlay = animations[actionToPlay];
+            addLog(`Выбрана анимация проигрыша: ${actionToPlay._clip.name}`);
+          }
+        }
+  
+        if (!actionToPlay && animationNames.length > 0) {
+          actionToPlay = animations[animationNames[0]];
+          addLog(`Используется первая доступная анимация: ${animationNames[0]}`);
+        }
+  
+        if (actionToPlay) {
+          Object.values(animations).forEach((action) => {
+            if (action.isRunning()) action.stop();
+          });
+          actionToPlay.setLoop(THREE.LoopOnce);
+          actionToPlay.clampWhenFinished = true;
+          actionToPlay.reset().play();
+          addLog(`Запущена анимация: ${actionToPlay._clip.name}`);
+          objectRef.current.visible = true;
+          setAnimationPlayed(true);
+        } else {
+          addLog("Подходящая анимация не найдена");
+        }
+      } else {
         addLog("Анимации не найдены, применяется простая анимация");
-        // Простая анимация вращения
         const startRotation = { x: objectRef.current.rotation.x, y: objectRef.current.rotation.y };
         const targetRotation = { x: isWin ? Math.PI / 6 : -Math.PI / 6, y: startRotation.y + Math.PI };
         const steps = 60;
@@ -217,78 +251,13 @@ const ARLotteryView = () => {
           }
         };
         animateObject();
-        objectRef.current.visible = true; // Убедимся, что сундук виден
-        setAnimationPlayed(true);
-        return;
-      }
-
-      // Выбор анимации
-      let actionToPlay;
-      const animationNames = Object.keys(animations);
-      addLog(`Доступные анимации: ${animationNames.join(", ")}`);
-
-      // Предполагаемые имена анимаций для выигрыша и проигрыша
-      const winKeywords = ["open", "chest", "win", "victory"];
-      const loseKeywords = ["close", "handle", "lose", "idle"];
-
-      if (isWin) {
-        actionToPlay = animationNames.find((name) =>
-          winKeywords.some((keyword) => name.toLowerCase().includes(keyword))
-        );
-        if (actionToPlay) {
-          actionToPlay = animations[actionToPlay];
-          addLog(`Выбрана анимация выигрыша: ${actionToPlay._clip.name}`);
-        }
-      } else {
-        actionToPlay = animationNames.find((name) =>
-          loseKeywords.some((keyword) => name.toLowerCase().includes(keyword))
-        );
-        if (actionToPlay) {
-          actionToPlay = animations[actionToPlay];
-          addLog(`Выбрана анимация проигрыша: ${actionToPlay._clip.name}`);
-        }
-      }
-
-      // Fallback на первую анимацию, если подходящая не найдена
-      if (!actionToPlay && animationNames.length > 0) {
-        actionToPlay = animations[animationNames[0]];
-        addLog(`Используется первая доступная анимация: ${animationNames[0]}`);
-      }
-
-      if (actionToPlay) {
-        Object.values(animations).forEach((action) => {
-          if (action.isRunning()) action.stop();
-        });
-        actionToPlay.setLoop(THREE.LoopOnce);
-        actionToPlay.clampWhenFinished = true;
-        actionToPlay.reset().play();
-        addLog(`Запущена анимация: ${actionToPlay._clip.name}`);
-        objectRef.current.visible = true; // Убедимся, что сундук виден
-        setAnimationPlayed(true);
-      } else {
-        addLog("Подходящая анимация не найдена, применяется простая анимация");
-        // Простая анимация вращения
-        const startRotation = { x: objectRef.current.rotation.x, y: objectRef.current.rotation.y };
-        const targetRotation = { x: isWin ? Math.PI / 6 : -Math.PI / 6, y: startRotation.y + Math.PI };
-        const steps = 60;
-        let currentStep = 0;
-        const animateObject = () => {
-          if (currentStep < steps) {
-            objectRef.current.rotation.x = startRotation.x + (targetRotation.x - startRotation.x) * (currentStep / steps);
-            objectRef.current.rotation.y = startRotation.y + (targetRotation.y - startRotation.y) * (currentStep / steps);
-            currentStep++;
-            requestAnimationFrame(animateObject);
-          }
-        };
-        animateObject();
-        objectRef.current.visible = true; // Убедимся, что сундук виден
+        objectRef.current.visible = true;
         setAnimationPlayed(true);
       }
     } catch (err) {
       addLog(`Ошибка воспроизведения анимации: ${err.message}`);
-      console.error("Ошибка анимации:", err);
       playSound(isWin ? "chestOpen" : "chestClose");
-      objectRef.current.visible = true; // Убедимся, что сундук виден
+      objectRef.current.visible = true;
       setAnimationPlayed(true);
     }
   };
@@ -343,8 +312,8 @@ const ARLotteryView = () => {
         chestModelPath,
         (gltf) => {
           const model = gltf.scene;
-          model.scale.set(0.1, 0.1, 0.1); // Унифицированный масштаб
-          model.visible = false; // Изначально невидим
+          model.scale.set(0.1, 0.1, 0.1);
+          model.visible = false;
           scene.add(model);
           objectRef.current = model;
           addLog(`Модель сундука загружена для AR: ${chestModelPath}`);
@@ -373,17 +342,16 @@ const ARLotteryView = () => {
             color: ticket.is_win ? 0xffd700 : 0x8b4513,
           });
           const box = new THREE.Mesh(boxGeometry, boxMaterial);
-          box.visible = true; // Резервный сундук виден сразу
-          box.position.set(0, 0, -1.0); // Позиция ближе к камере
+          box.visible = true;
+          box.position.set(0, 0, -0.5); // Ближе к камере
           scene.add(box);
           objectRef.current = box;
           addLog("Создан резервный сундук для AR");
         }
       );
   
-      // Отключаем hit-test для тестирования
       const button = ARButton.createButton(renderer, {
-        requiredFeatures: [], // Убираем hit-test
+        requiredFeatures: [], // Без hit-test для тестирования
         optionalFeatures: ["dom-overlay"],
         domOverlay: { root: document.body },
       });
@@ -392,16 +360,14 @@ const ARLotteryView = () => {
       renderer.xr.addEventListener("sessionstart", () => {
         addLog("WebXR сессия начата");
         activateAudioContext();
-        hitTestSourceRequested.current = false;
         renderer.setAnimationLoop(onXRFrame);
   
-        // Немедленный fallback
         if (objectRef.current && !objectRef.current.visible) {
-          addLog("Размещение сундука по умолчанию (без ожидания)");
-          objectRef.current.position.set(0, 0, -1.0); // Ближе к камере
+          addLog("Размещение сундука по умолчанию");
+          objectRef.current.position.set(0, 0, -0.5); // Ближе к камере
           objectRef.current.scale.set(0.1, 0.1, 0.1);
           objectRef.current.rotation.set(0, 0, 0);
-          objectRef.current.visible = true; // Убедимся, что виден
+          objectRef.current.visible = true;
           playSpecificAnimation(ticket.is_win);
         }
       });
@@ -410,10 +376,6 @@ const ARLotteryView = () => {
         addLog("WebXR сессия завершена");
         renderer.setAnimationLoop(null);
         setArStarted(false);
-        if (hitTestSource.current) {
-          hitTestSource.current.cancel();
-          hitTestSource.current = null;
-        }
       });
   
       setArStarted(true);
