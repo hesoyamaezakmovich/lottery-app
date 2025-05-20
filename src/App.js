@@ -1,4 +1,4 @@
-// Обновление App.js для добавления маршрутов AR лотереи
+// Modified App.js to fix white margin issues
 import { BrowserRouter as Router, Route, Routes, Navigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import Navbar from "./components/Navbar";
@@ -15,6 +15,7 @@ import InstantLotteryGame from "./components/InstantLotteryGame";
 import ARLottery from "./components/ARLottery";  
 import ARLotteryView from "./components/ARLotteryView";
 import { supabase } from "./supabaseClient";
+import './App.css'; // Make sure App.css is imported
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -63,14 +64,14 @@ function App() {
   }, []);
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-100">Загрузка...</div>;
+    return <div className="min-h-screen flex items-center justify-center bg-gray-900">Загрузка...</div>;
   }
 
   return (
     <Router>
-      <div className="flex flex-col min-h-screen">
+      <div className="flex flex-col min-h-screen w-full overflow-x-hidden">
         <Navbar />
-        <main className="flex-grow">
+        <main className="flex-grow w-full overflow-x-hidden">
           <Routes>
             <Route path="/register" element={<Register />} />
             <Route path="/login" element={<Login />} />
@@ -98,7 +99,7 @@ function App() {
               path="/instant-lottery/:type"
               element={isAuthenticated ? <InstantLotteryGame /> : <Navigate to="/login" />}
             />
-            {/* Новые маршруты для AR лотереи */}
+            {/* Маршруты для AR лотереи */}
             <Route
               path="/ar-lottery"
               element={isAuthenticated ? <ARLottery /> : <Navigate to="/login" />}
