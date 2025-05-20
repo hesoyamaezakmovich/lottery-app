@@ -26,20 +26,6 @@ main, div.min-h-screen {
   overflow-x: hidden;
 }
 
-/* Анимация для медленного движения фона */
-@keyframes slow-move {
-  0% {
-    background-position: 0 0;
-  }
-  100% {
-    background-position: 100% 100%;
-  }
-}
-
-.animate-slow-move {
-  animation: slow-move 20s linear infinite;
-}
-
 /* Улучшение шрифтов и теней для текста */
 h3 {
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);

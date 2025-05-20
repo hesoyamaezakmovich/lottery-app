@@ -1,4 +1,4 @@
-// Минималистичный темный Navbar.js
+// Updated Navbar.js with reorganized layout
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../supabaseClient";
@@ -56,44 +56,19 @@ const Navbar = () => {
     <nav className="bg-gray-900 border-b border-gray-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Логотип */}
-          <div className="flex items-center">
+          {/* Left section: Logo and navigation */}
+          <div className="flex items-center space-x-4">
+            {/* Logo */}
             <Link to="/" className="flex items-center space-x-3 group">
               <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center shadow-lg hover:shadow-purple-500/30 transition-all duration-300">
                 <span className="text-white text-sm font-bold">ЛОТО</span>
               </div>
               <span className="text-2xl font-bold text-white tracking-tight">FutureWin</span>
             </Link>
-          </div>
-
-          {/* Информация о пользователе и балансе (только для десктопа) */}
-          {user && (
-            <div className="hidden md:flex items-center bg-gray-800 px-4 py-2 rounded-lg border border-gray-700">
-              <div className="mr-6">
-                <p className="text-gray-400 text-xs">Баланс</p>
-                <p className="text-white font-medium">{user.balance?.toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 2}) || "0.00"} ₽</p>
-              </div>
-              <div className="relative">
-                <p className="text-gray-400 text-xs">Кристаллы</p>
-                <div className="flex items-center">
-                  <p className="text-white font-medium">{user.crystals || 0}</p>
-                  <span className="ml-1 text-yellow-400">✦</span>
-                </div>
-                {user.vip_level > 0 && (
-                  <div className="absolute -top-2 -right-2">
-                    <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold text-gray-900 bg-yellow-400 rounded-full">
-                      VIP {user.vip_level}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Навигация для десктопа */}
-          <div className="hidden md:block">
-            <div className="flex items-center">
-              <div className="border border-gray-700 rounded-lg p-1 mr-4">
+            
+            {/* Navigation for desktop (moved from center to left) */}
+            <div className="hidden md:block ml-6">
+              <div className="border border-gray-700 rounded-lg p-1">
                 <Link
                   to="/dashboard"
                   className={`px-3 py-1.5 rounded text-sm font-medium ${
@@ -128,7 +103,39 @@ const Navbar = () => {
                   )}
                 </Link>
               </div>
+            </div>
+          </div>
 
+          {/* Right section: User info and VIP status */}
+          <div className="flex items-center space-x-3">
+            {/* User balance (only for desktop) */}
+            {user && (
+              <div className="hidden md:flex items-center">
+                <div className="bg-gray-800 px-4 py-2 rounded-lg border border-gray-700">
+                  <p className="text-gray-400 text-xs">Баланс</p>
+                  <p className="text-white font-medium">{user.balance?.toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 2}) || "0.00"} ₽</p>
+                </div>
+                
+                {/* Crystals (only for desktop) */}
+                <div className="ml-3 bg-gray-800 px-4 py-2 rounded-lg border border-gray-700">
+                  <p className="text-gray-400 text-xs">Кристаллы</p>
+                  <div className="flex items-center">
+                    <p className="text-white font-medium">{user.crystals || 0}</p>
+                    <span className="ml-1 text-yellow-400">✦</span>
+                  </div>
+                </div>
+                
+                {/* VIP level moved outside balance block */}
+                {user.vip_level > 0 && (
+                  <div className="ml-3 bg-yellow-400 px-3 py-2 rounded-lg">
+                    <p className="text-xs font-bold text-gray-900">VIP {user.vip_level}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* User actions for desktop */}
+            <div className="hidden md:flex items-center space-x-2">
               {user ? (
                 <div className="flex items-center space-x-2">
                   <Link
@@ -171,7 +178,7 @@ const Navbar = () => {
             </div>
           </div>
 
-          {/* Мобильная кнопка меню */}
+          {/* Mobile menu button */}
           <div className="md:hidden">
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -202,26 +209,30 @@ const Navbar = () => {
         </div>
       </div>
 
-      {/* Мобильное меню */}
+      {/* Mobile menu */}
       <div className={`${isMenuOpen ? 'block' : 'hidden'} md:hidden border-t border-gray-800`}>
         {user && (
-          <div className="flex justify-between items-center px-10 py- bg-gray-800 border-b border-gray-700">
-            <div>
-              <p className="text-xs text-gray-400">Баланс</p>
-              <p className="text-white font-medium">{user.balance?.toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 2}) || "0.00"} ₽</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400">Кристаллы</p>
-              <div className="flex items-center">
-                <p className="text-white font-medium">{user.crystals || 0}</p>
-                <span className="ml-1 text-yellow-400">✦</span>
+          <div className="flex flex-col space-y-2 px-4 py-3 bg-gray-800 border-b border-gray-700">
+            {/* Mobile user info */}
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-xs text-gray-400">Баланс</p>
+                <p className="text-white font-medium">{user.balance?.toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 2}) || "0.00"} ₽</p>
               </div>
-            </div>
-            {user.vip_level > 0 && (
-              <div className="bg-yellow-400 rounded-full px-2 py-0.5">
-                <p className="text-xs font-bold text-gray-900">VIP {user.vip_level}</p>
+              <div>
+                <p className="text-xs text-gray-400">Кристаллы</p>
+                <div className="flex items-center">
+                  <p className="text-white font-medium">{user.crystals || 0}</p>
+                  <span className="ml-1 text-yellow-400">✦</span>
+                </div>
               </div>
-            )}
+              {/* VIP status outside the balance block in mobile view */}
+              {user.vip_level > 0 && (
+                <div className="bg-yellow-400 rounded-full px-2 py-0.5">
+                  <p className="text-xs font-bold text-gray-900">VIP {user.vip_level}</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
         
